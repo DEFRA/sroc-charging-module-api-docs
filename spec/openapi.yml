@@ -100,7 +100,7 @@ info:
     The **Charging Module team** use [Postman](https://www.postman.com/) as the means to interact with the API. Check out their [docs](https://github.com/DEFRA/sroc-service-team/postman) for info on how to go about setting up your own Postman environment.
 
   version: "draft"
-  title: SROC Charging Module API
+  title: Charging Module API
   contact:
     name: Charging Module team
     email: alan.cruikshanks@defra.gov.uk
