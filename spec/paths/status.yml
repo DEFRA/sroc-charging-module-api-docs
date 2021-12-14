@@ -1,0 +1,13 @@
+get:
+  operationId: Status
+  description: "Confirm service is up and running"
+  tags:
+    - status
+  responses:
+    '200':
+      description: "Success"
+      content:
+        application/json:
+          schema:
+            example:
+              status: alive
