@@ -1,115 +1,18 @@
 openapi: 3.0.0
 info:
-  description: |
-    > This `draft` version represents the next release of the API.
-
-    Provides an interface for calculating charges, creating and queuing transactions, and generating transaction and customer files used to produce Environment Agency invoices.
-
-    ## Overview
-
-    The Environment Agency's customers are invoiced from the SSCL SOP system. The invoices are based on transaction files imported by SOP that contain details of which customers need invoicing or crediting and for how much. The Charging Module (CM) was built to generate those transaction files.
-
-    It does this based on individual **transaction** information which client systems send to it. These are grouped under a **bill run**. When 'generated' each **bill run** will result in a transaction file.
-
-    > There are exceptions to this but we'll cover them later!
-
-    When a **transaction** is sent to the CM it calls a 'rules service' using a mix of information from the request and values it works out. That service will work out the 'charge' for the transaction and return it to the CM.
-
-    Once all the **transactions** are in the **bill run** can be 'generated'. The **transactions** are grouped by customer and financial year and then the CM applies various rules to the grouping, determined by the **regime** the **bill run** is for. The result is an invoice or credit note that is ready to be 'sent' to SSCL via the transaction file.
-
-    The exceptions are invoice or credit notes that have 0 value or that don't meet a certain threshold again determined by the rules for the **regime**.
-
-    ### Customer changes
-
-    To ensure invoices get to customers SSCL needs to have up-to-date customer details. The CM also provides a mechanism for client systems to tell SSCL about any new customers or changes to customer details using another import file. The changes are logged by the CM and the next time a **bill run** for the same area as the customer is 'sent' their changes will be added to that file for import by SSCL SOP.
-
-    In case no matching **bill runs** are 'sent' that week, the CM also creates the customer import file once a week for any changes that didn't get picked up.
-
-    ## Workflows
-
-    The endpoints the API provide are intended to support a workflow that sees a **bill run** move from being created to being sent as a transaction file to SSCL for invoicing.
-
-    The following assumes everything went as planned with no need for changes before sending the transaction file to SSCL.
-
-    > **Create** `->` **Add (transactions)** `->` **Generate** `->` **Approve** `->` **Send**
-
-    It starts with creating a new **bill run**. From then on all actions will relate to that **bill run**, whether its adding **transactions**, 'generating' the **bill run** or 'sending' it to SSCL.
-
-    - `POST /v2/{regime}/bill-runs` Create a new **bill run**. It will return the **bill run's** ID which will be needed in all subsequent requests
-    - `POST /v2/{regime}/bill-runs/{billRunId}/transactions'` Create a **transaction** against the **bill run**. The CM will use the 'rules service' to calculate the **transaction's** charge value
-    - `PATCH /v2/{regime}/bill-runs/{billRunId}/generate` Tell the CM to 'generate' the **bill run**. This involves applying a series of **regime** specific rules against the transactions in the **bill run**. From it the final invoice or credit note values will be determined
-    - `PATCH /v2/{regime}/bill-runs/{billRunId}/approve` Confirm to the CM that the **bill run** has been checked and approved for sending to SSCL
-    - `PATCH /v2/{regime}/bill-runs/{billRunId}/send` Tell the CM to generate the transaction file ready for importing by SSCL SOP
-
-    There are various `GET` endpoints that can be used to query the status or contents of a **bill run** at all stages. But these requests are the minimum needed to get a transaction file to SSCL SOP.
-
-    ### Amending a bill run
-
-    Up till a **bill run** is 'approved' it can be amended. This means deleting **invoices** or **licences**, adding new **transactions**, or deleting the **bill run** altogether.
-
-    - `DELETE /v2/{regime}/bill-runs/{billRunId}/invoices/{invoiceId}`
-    - `DELETE /v2/{regime}/bill-runs/{billRunId}/licences/{licenceId}`
-    - `POST /v2/{regime}/bill-runs/{billRunId}/transactions'`
-    - `DELETE /v2/{regime}/bill-runs/{billRunId}`
-
-    When invoices or licences are removed, if a **bill run** has been generated the CM will automatically handle updating the bill run summary information.
-
-    If a transaction is added to a **bill run** it means the invoice needs to be recalculated, which in turn means the **bill run** details need recalculating. So, in this case the CM will re-initialise the **bill run** and the client system is expected to call the **bill run** `/generate` endpoint again.
-
-    ## Rules
-
-    When the CM is 'generating' a **bill run** it applies various rules to each invoice to determine its final value and whether it should be included in the transaction file sent to SSCL SOP.
-
-    ### Deminimis
-
-    Invoices with a total value less than £5 are not issued to the customer and hence do not appear in a transaction file. This rule applies only to invoices (where the value is positive); credit notes under £5 are issued to the customer as usual.
-
-    ### Minimum charge
-
-    Some regimes support the idea of a minimum charge, for example, when a new licence is created so the customer is being charged for the first time. Transactions that are subject to this can be flagged as `subjectToMinimumCharge`. When the total value of these transactions falls below £25, a minimum charge rule is applied. This results in the creation of an additional transaction equal to the difference between £25 and the originally calculated total value.
-
-    To determine the total the transactions are grouped
-
-    - customer reference
-    - financial year
-    - licence number
-    - transaction type (credit or debit)
-
-    Plus they must be flagged as `subjectToMinimumCharge`. Transactions that have the same details but ***don't*** have this flag set will not be grouped when determing the total.
-
-    _It is the responsibility of the client system to tell the CM whether a **transaction** is subject to minimum charge._
-
-    ### Zero value
-
-    Invoices with a net value of zero (£0) are not issued to the customer and hence do not need to appear in a transaction file. This rule is distinct from the [deminimis rule](#deminimis), meaning that zero value invoices are not flagged as deminimis.
-
-    ## Developing against the API
-
-    In order to develop a client system that uses the API you'll want to understand how to make requests and try them out. We hope the following will help with that.
-
-    ### Talking to INTEGRATION
-
-    We have an AWS `INTEGRATION` environment setup and available specifically for client systems to use. For access contact the [Charging Module team](alan.cruikshanks@defra.gov.uk).
-
-    ### Running the API locally
-
-    The [Charging Module team](https://github.com/DEFRA/sroc-service-team) also provide a [Docker image](https://hub.docker.com/r/environmentagency/sroc-charging-module-api) you can use to run the API locally. Checkout out their [docs](https://github.com/DEFRA/sroc-service-team/tree/main/dockerhub) for info on how to get it up and running locally.
-
-    ### Talking to the API
-
-    The **Charging Module team** use [Postman](https://www.postman.com/) as the means to interact with the API. Check out their [docs](https://github.com/DEFRA/sroc-service-team/postman) for info on how to go about setting up your own Postman environment.
+  description: "> This `draft` version represents the next release of the API.\n\nProvides an interface for calculating charges, creating and queuing transactions, and generating transaction and customer files used to produce Environment Agency invoices.\n\n##\_Overview\n\nThe Environment Agency's customers are invoiced from the SSCL SOP system. The invoices are based on transaction files imported by SOP that contain details of which customers need invoicing or crediting and for how much. The Charging Module (CM) was built to generate those transaction files.\n\nIt does this based on individual **transaction** information which client systems send to it. These are grouped under a **bill run**. When 'generated' each **bill run** will result in a transaction file.\n\n> There are exceptions to this but we'll cover them later!\n\nWhen a **transaction** is sent to the CM it calls a 'rules service' using a mix of information from the request and values it works out. That service will work out the 'charge' for the transaction and return it to the CM.\n\nOnce all the **transactions** are in the **bill run** can be 'generated'. The **transactions** are grouped by customer and financial year and then the CM applies various rules to the grouping, determined by the **regime** the **bill run** is for. The result is an invoice or credit note that is ready to be 'sent' to SSCL via the transaction file.\n\nThe exceptions are invoice or credit notes that have 0 value or that don't meet a certain threshold again determined by the rules for the **regime**.\n\n### Customer changes\n\nTo ensure invoices get to customers SSCL needs to have up-to-date customer details. The CM also provides a mechanism for client systems to tell SSCL about any new customers or changes to customer details using another import file. The changes are logged by the CM and the next time a **bill run** for the same area as the customer is 'sent' their changes will be added to that file for import by SSCL SOP.\n\nIn case no matching **bill runs** are 'sent' that week, the CM also creates the customer import file once a week for any changes that didn't get picked up.\n\n## Workflows\n\nThe endpoints the API provide are intended to support a workflow that sees a **bill run** move from being created to being sent as a transaction file to SSCL for invoicing.\n\nThe following assumes everything went as planned with no need for changes before sending the transaction file to SSCL.\n\n> **Create** `->` **Add (transactions)** `->` **Generate** `->` **Approve** `->` **Send**\n\nIt starts with creating a new **bill run**. From then on all actions will relate to that **bill run**, whether its adding **transactions**, 'generating' the **bill run** or 'sending' it to SSCL.\n\n- `POST /v2/{regime}/bill-runs` Create a new **bill run**. It will return the **bill run's** ID which will be needed in all subsequent requests\n- `POST /v2/{regime}/bill-runs/{billRunId}/transactions'` Create a **transaction** against the **bill run**. The CM will use the 'rules service' to calculate the **transaction's** charge value\n- `PATCH /v2/{regime}/bill-runs/{billRunId}/generate` Tell the CM to 'generate' the **bill run**. This involves applying a series of **regime** specific rules against the transactions in the **bill run**. From it the final invoice or credit note values will be determined\n- `PATCH /v2/{regime}/bill-runs/{billRunId}/approve` Confirm to the CM that the **bill run** has been checked and approved for sending to SSCL\n- `PATCH /v2/{regime}/bill-runs/{billRunId}/send` Tell the CM to generate the transaction file ready for importing by SSCL SOP\n\nThere are various `GET` endpoints that can be used to query the status or contents of a **bill run** at all stages. But these requests are the minimum needed to get a transaction file to SSCL SOP.\n\n### Amending a bill run\n\nUp till a **bill run** is 'approved' it can be amended. This means deleting **invoices** or **licences**, adding new **transactions**, or deleting the **bill run** altogether.\n\n- `DELETE /v2/{regime}/bill-runs/{billRunId}/invoices/{invoiceId}`\n- `DELETE /v2/{regime}/bill-runs/{billRunId}/licences/{licenceId}`\n- `POST /v2/{regime}/bill-runs/{billRunId}/transactions'`\n- `DELETE /v2/{regime}/bill-runs/{billRunId}`\n\nWhen invoices or licences are removed, if a **bill run** has been generated the CM will automatically handle updating the bill run summary information.\n\nIf a transaction is added to a **bill run** it means the invoice needs to be recalculated, which in turn means the **bill run** details need recalculating. So, in this case the CM will re-initialise the **bill run** and the client system is expected to call the **bill run** `/generate` endpoint again.\n\n## Rules\n\nWhen the CM is 'generating' a **bill run** it applies various rules to each invoice to determine its final value and whether it should be included in the transaction file sent to SSCL SOP.\n\n### Deminimis\n\nInvoices with a total value less than £5 are not issued to the customer and hence do not appear in a transaction file. This rule applies only to invoices (where the value is positive); credit notes under £5 are issued to the customer as usual.\n\n### Minimum charge\n\nSome regimes support the idea of a minimum charge, for example, when a new licence is created so the customer is being charged for the first time. Transactions that are subject to this can be flagged as `subjectToMinimumCharge`. When the total value of these transactions falls below £25, a minimum charge rule is applied. This results in the creation of an additional transaction equal to the difference between £25 and the originally calculated total value.\n\nTo determine the total the transactions are grouped\n\n- customer reference\n- financial year\n- licence number\n- transaction type (credit or debit)\n\nPlus they must be flagged as `subjectToMinimumCharge`. Transactions that have the same details but ***don't*** have this flag set will not be grouped when determing the total.\n\n_It is the responsibility of the client system to tell the CM whether a **transaction** is subject to minimum charge._\n\n### Zero value\n\nInvoices with a net value of zero (£0) are not issued to the customer and hence do not need to appear in a transaction file. This rule is distinct from the [deminimis rule](#deminimis), meaning that zero value invoices are not flagged as deminimis.\n\n## Developing against the API\n\nIn order to develop a client system that uses the API you'll want to understand how to make requests and try them out. We hope the following will help with that.\n\n### Talking to INTEGRATION\n\nWe have an AWS `INTEGRATION` environment setup and available specifically for client systems to use. For access contact the [Charging Module team](alan.cruikshanks@defra.gov.uk).\n\n### Running the API locally\n\nThe [Charging Module team](https://github.com/DEFRA/sroc-service-team) also provide a [Docker image](https://hub.docker.com/r/environmentagency/sroc-charging-module-api) you can use to run the API locally. Checkout out their [docs](https://github.com/DEFRA/sroc-service-team/tree/main/dockerhub) for info on how to get it up and running locally.\n\n### Talking to the API\n\nThe **Charging Module team** use [Postman](https://www.postman.com/) as the means to interact with the API. Check out their [docs](https://github.com/DEFRA/sroc-service-team/postman) for info on how to go about setting up your own Postman environment.\n"
   version: draft
   title: SROC Charging Module API
   contact:
     name: Charging Module team
     email: alan.cruikshanks@defra.gov.uk
-    url: https://github.com/DEFRA/sroc-service-team
+    url: 'https://github.com/DEFRA/sroc-service-team'
   license:
     name: Open Government Licence (OGL)
-    url: http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3
+    url: 'http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3'
 servers:
   - description: Local
-    url: http://localhost:3003
+    url: 'http://localhost:3003'
 tags:
   - name: bill-run
     description: Operations related to bill runs
@@ -120,7 +23,7 @@ tags:
   - name: unavailable
     description: These will become available eventually but are yet to be fully implemented
   - name: admin
-    description: Used to administer, monitor, and test the service. Only available when authenticating as an 'admin'
+    description: 'Used to administer, monitor, and test the service. Only available when authenticating as an ''admin'''
   - name: status
     description: Endpoints that can be used to confirm the status of the API or by automated 'health checks'
 paths:
@@ -131,7 +34,7 @@ paths:
       tags:
         - status
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -148,7 +51,7 @@ paths:
       tags:
         - status
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -162,7 +65,7 @@ paths:
       tags:
         - admin
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -177,7 +80,7 @@ paths:
                       format: uuid
                       example: fd2ab097-3097-42bd-849e-046aa250a0d0
                     slug:
-                      description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+                      description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
                       type: string
                       enum:
                         - cfd
@@ -193,43 +96,43 @@ paths:
                       description: Date when rules changed from pre-SROC to SROC based
                       type: string
                       format: date
-                      example: "2020-04-01"
+                      example: '2020-04-01'
                     createdAt:
                       description: Date and time the record was created
                       type: string
                       format: datetime
-                      example: "2020-09-11T11:56:41.578Z"
+                      example: '2020-09-11T11:56:41.578Z'
                     updatedAt:
                       description: Date and time the record was last updated
                       type: string
                       format: datetime
-                      example: "2020-09-11T11:56:41.578Z"
+                      example: '2020-09-11T11:56:41.578Z'
               example:
                 - id: ef5ee223-2ee5-4f02-ace5-35330d9f3781
                   slug: cfd
                   name: Water Quality
-                  preSrocCutoffDate: "2018-04-01T00:00:00.000Z"
-                  createdAt: "2020-12-01T09:19:22.065Z"
-                  updatedAt: "2020-12-01T09:19:22.065Z"
+                  preSrocCutoffDate: '2018-04-01T00:00:00.000Z'
+                  createdAt: '2020-12-01T09:19:22.065Z'
+                  updatedAt: '2020-12-01T09:19:22.065Z'
                 - id: 6bd74eeb-6beb-41d9-be52-5934a49ecd97
                   slug: pas
                   name: Installations
-                  preSrocCutoffDate: "2018-04-01T00:00:00.000Z"
-                  createdAt: "2020-12-01T09:19:22.065Z"
-                  updatedAt: "2020-12-01T09:19:22.065Z"
+                  preSrocCutoffDate: '2018-04-01T00:00:00.000Z'
+                  createdAt: '2020-12-01T09:19:22.065Z'
+                  updatedAt: '2020-12-01T09:19:22.065Z'
                 - id: 458834a2-0541-4981-87f6-2c0ec9261661
                   slug: wml
                   name: Waste
-                  preSrocCutoffDate: "2018-04-01T00:00:00.000Z"
-                  createdAt: "2020-12-01T09:19:22.065Z"
-                  updatedAt: "2020-12-01T09:19:22.065Z"
+                  preSrocCutoffDate: '2018-04-01T00:00:00.000Z'
+                  createdAt: '2020-12-01T09:19:22.065Z'
+                  updatedAt: '2020-12-01T09:19:22.065Z'
                 - id: 2f62bc92-7372-4d2a-979b-792e530c311c
                   slug: wrls
                   name: Water Resources
-                  preSrocCutoffDate: "2020-04-01T00:00:00.000Z"
-                  createdAt: "2020-12-01T09:19:22.065Z"
-                  updatedAt: "2020-12-01T09:19:22.065Z"
-  /admin/regimes/{regimeId}:
+                  preSrocCutoffDate: '2020-04-01T00:00:00.000Z'
+                  createdAt: '2020-12-01T09:19:22.065Z'
+                  updatedAt: '2020-12-01T09:19:22.065Z'
+  '/admin/regimes/{regimeId}':
     get:
       operationId: ViewRegime
       description: Request details of a 'regime'.
@@ -246,7 +149,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -259,7 +162,7 @@ paths:
                     format: uuid
                     example: fd2ab097-3097-42bd-849e-046aa250a0d0
                   slug:
-                    description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+                    description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
                     type: string
                     enum:
                       - cfd
@@ -275,17 +178,17 @@ paths:
                     description: Date when rules changed from pre-SROC to SROC based
                     type: string
                     format: date
-                    example: "2020-04-01"
+                    example: '2020-04-01'
                   createdAt:
                     description: Date and time the record was created
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   updatedAt:
                     description: Date and time the record was last updated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   authorisedSystems:
                     type: array
                     items:
@@ -305,7 +208,7 @@ paths:
                           type: string
                           example: Water Resources
                         status:
-                          description: Only 'active' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as 'inactive' rather than delete them
+                          description: 'Only ''active'' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as ''inactive'' rather than delete them'
                           type: string
                           enum:
                             - active
@@ -319,28 +222,28 @@ paths:
                           description: Date and time the record was created
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
                         updatedAt:
                           description: Date and time the record was last updated
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
               example:
                 id: 2f62bc92-7372-4d2a-979b-792e530c311c
                 slug: wrls
                 name: Water Resources
-                preSrocCutoffDate: "2020-04-01T00:00:00.000Z"
-                createdAt: "2020-12-01T09:19:22.065Z"
-                updatedAt: "2020-12-01T09:19:22.065Z"
+                preSrocCutoffDate: '2020-04-01T00:00:00.000Z'
+                createdAt: '2020-12-01T09:19:22.065Z'
+                updatedAt: '2020-12-01T09:19:22.065Z'
                 authorisedSystems:
                   - id: b36d674f-b97c-4685-95f3-aacae8c97bde
                     clientId: 1b1gshltt176v80nsc4fxxxxxx
                     name: wrls
                     status: active
-                    admin: "false"
-                    createdAt: "2020-12-02T09:19:22.065Z"
-                    updatedAt: "2020-12-02T09:19:22.065Z"
-        "404":
+                    admin: 'false'
+                    createdAt: '2020-12-02T09:19:22.065Z'
+                    updatedAt: '2020-12-02T09:19:22.065Z'
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -352,11 +255,11 @@ paths:
   /admin/authorised-systems:
     get:
       operationId: ListAuthorisedSystems
-      description: Request a list of 'authorised systems'. An authorised system is essentially a user of the API, and this returns those users permitted to access it.
+      description: 'Request a list of ''authorised systems''. An authorised system is essentially a user of the API, and this returns those users permitted to access it.'
       tags:
         - admin
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -382,7 +285,7 @@ paths:
                           type: string
                           example: Water Resources
                         status:
-                          description: Only 'active' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as 'inactive' rather than delete them
+                          description: 'Only ''active'' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as ''inactive'' rather than delete them'
                           type: string
                           enum:
                             - active
@@ -396,34 +299,34 @@ paths:
                           description: Date and time the record was created
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
                         updatedAt:
                           description: Date and time the record was last updated
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
               example:
                 - id: ac12ac4b-9b9e-4cba-a06f-a90f611a1ef1
                   clientId: 710uhe3hqumsk2da43foxxxxxx
                   name: admin
                   status: active
-                  admin: "true"
-                  createdAt: "2020-11-01T09:19:22.065Z"
-                  updatedAt: "2020-11-01T09:19:22.065Z"
+                  admin: 'true'
+                  createdAt: '2020-11-01T09:19:22.065Z'
+                  updatedAt: '2020-11-01T09:19:22.065Z'
                 - id: b36d674f-b97c-4685-95f3-aacae8c97bde
                   clientId: 1b1gshltt176v80nsc4fxxxxxx
                   name: wrls
                   status: active
-                  admin: "false"
-                  createdAt: "2020-12-02T09:19:22.065Z"
-                  updatedAt: "2020-12-02T09:19:22.065Z"
+                  admin: 'false'
+                  createdAt: '2020-12-02T09:19:22.065Z'
+                  updatedAt: '2020-12-02T09:19:22.065Z'
     post:
       operationId: AddAuthorisedSystem
-      description: Add a new 'authorised system'. An authorised system is essentially a user of the API, and this adds a new one to it.
+      description: 'Add a new ''authorised system''. An authorised system is essentially a user of the API, and this adds a new one to it.'
       tags:
         - admin
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -444,7 +347,7 @@ paths:
                     type: string
                     example: Water Resources
                   status:
-                    description: Only 'active' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as 'inactive' rather than delete them
+                    description: 'Only ''active'' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as ''inactive'' rather than delete them'
                     type: string
                     enum:
                       - active
@@ -458,45 +361,45 @@ paths:
                     description: Date and time the record was created
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   updatedAt:
                     description: Date and time the record was last updated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
               example:
                 id: 9e76203a-e900-41a1-a045-2551d98e010c
                 clientId: i7rnixijjrawj7azzhwwxxxxxx
                 name: dashboard
                 status: active
-                admin: "false"
-                createdAt: "2020-12-04T09:19:22.065Z"
-                updatedAt: "2020-12-04T09:19:22.065Z"
+                admin: 'false'
+                createdAt: '2020-12-04T09:19:22.065Z'
+                updatedAt: '2020-12-04T09:19:22.065Z'
                 regimes:
                   - id: ef5ee223-2ee5-4f02-ace5-35330d9f3781
                     slug: cfd
                     name: Water Quality
-                    preSrocCutoffDate: "2018-04-01T00:00:00.000Z"
-                    createdAt: "2020-12-01T09:19:22.065Z"
-                    updatedAt: "2020-12-01T09:19:22.065Z"
+                    preSrocCutoffDate: '2018-04-01T00:00:00.000Z'
+                    createdAt: '2020-12-01T09:19:22.065Z'
+                    updatedAt: '2020-12-01T09:19:22.065Z'
                   - id: 6bd74eeb-6beb-41d9-be52-5934a49ecd97
                     slug: pas
                     name: Installations
-                    preSrocCutoffDate: "2018-04-01T00:00:00.000Z"
-                    createdAt: "2020-12-01T09:19:22.065Z"
-                    updatedAt: "2020-12-01T09:19:22.065Z"
+                    preSrocCutoffDate: '2018-04-01T00:00:00.000Z'
+                    createdAt: '2020-12-01T09:19:22.065Z'
+                    updatedAt: '2020-12-01T09:19:22.065Z'
                   - id: 458834a2-0541-4981-87f6-2c0ec9261661
                     slug: wml
                     name: Waste
-                    preSrocCutoffDate: "2018-04-01T00:00:00.000Z"
-                    createdAt: "2020-12-01T09:19:22.065Z"
-                    updatedAt: "2020-12-01T09:19:22.065Z"
+                    preSrocCutoffDate: '2018-04-01T00:00:00.000Z'
+                    createdAt: '2020-12-01T09:19:22.065Z'
+                    updatedAt: '2020-12-01T09:19:22.065Z'
                   - id: 2f62bc92-7372-4d2a-979b-792e530c311c
                     slug: wrls
                     name: Water Resources
-                    preSrocCutoffDate: "2020-04-01T00:00:00.000Z"
-                    createdAt: "2020-12-01T09:19:22.065Z"
-                    updatedAt: "2020-12-01T09:19:22.065Z"
+                    preSrocCutoffDate: '2020-04-01T00:00:00.000Z'
+                    createdAt: '2020-12-01T09:19:22.065Z'
+                    updatedAt: '2020-12-01T09:19:22.065Z'
       requestBody:
         content:
           application/json:
@@ -512,7 +415,7 @@ paths:
                   type: string
                   example: Water Resources
                 status:
-                  description: Only 'active' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as 'inactive' rather than delete them
+                  description: 'Only ''active'' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as ''inactive'' rather than delete them'
                   type: string
                   enum:
                     - active
@@ -521,7 +424,7 @@ paths:
                 authorisations:
                   type: array
                   items:
-                    description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+                    description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
                     type: string
                     enum:
                       - cfd
@@ -538,10 +441,10 @@ paths:
                 - pas
                 - wml
                 - wrls
-  /admin/authorised-systems/{authorisedSystemId}:
+  '/admin/authorised-systems/{authorisedSystemId}':
     get:
       operationId: ViewAuthorisedSystem
-      description: Request details of an 'authorised system'. An authorised system is essentially a user of the API, and this returns details about it including which regimes it is authorised to access.
+      description: 'Request details of an ''authorised system''. An authorised system is essentially a user of the API, and this returns details about it including which regimes it is authorised to access.'
       tags:
         - admin
       parameters:
@@ -555,7 +458,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -576,7 +479,7 @@ paths:
                     type: string
                     example: Water Resources
                   status:
-                    description: Only 'active' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as 'inactive' rather than delete them
+                    description: 'Only ''active'' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as ''inactive'' rather than delete them'
                     type: string
                     enum:
                       - active
@@ -590,12 +493,12 @@ paths:
                     description: Date and time the record was created
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   updatedAt:
                     description: Date and time the record was last updated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   regimes:
                     type: array
                     items:
@@ -607,7 +510,7 @@ paths:
                           format: uuid
                           example: fd2ab097-3097-42bd-849e-046aa250a0d0
                         slug:
-                          description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+                          description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
                           type: string
                           enum:
                             - cfd
@@ -623,35 +526,35 @@ paths:
                           description: Date when rules changed from pre-SROC to SROC based
                           type: string
                           format: date
-                          example: "2020-04-01"
+                          example: '2020-04-01'
                         createdAt:
                           description: Date and time the record was created
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
                         updatedAt:
                           description: Date and time the record was last updated
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
               example:
                 id: b36d674f-b97c-4685-95f3-aacae8c97bde
                 clientId: 1b1gshltt176v80nsc4fxxxxxx
                 name: wrls
                 status: active
-                admin: "false"
-                createdAt: "2020-12-02T09:19:22.065Z"
-                updatedAt: "2020-12-02T09:19:22.065Z"
+                admin: 'false'
+                createdAt: '2020-12-02T09:19:22.065Z'
+                updatedAt: '2020-12-02T09:19:22.065Z'
                 regimes:
                   - id: 2f62bc92-7372-4d2a-979b-792e530c311c
                     slug: wrls
                     name: Water Resources
-                    preSrocCutoffDate: "2020-04-01T00:00:00.000Z"
-                    createdAt: "2020-12-01T09:19:22.065Z"
-                    updatedAt: "2020-12-01T09:19:22.065Z"
+                    preSrocCutoffDate: '2020-04-01T00:00:00.000Z'
+                    createdAt: '2020-12-01T09:19:22.065Z'
+                    updatedAt: '2020-12-01T09:19:22.065Z'
     patch:
       operationId: UpdateAuthorisedSystem
-      description: Update an 'authorised system'. An authorised system is essentially a user of the API, and this is used to update the details of one. You don't have to specify all properties when updating. If you specify `authorisations` though, you must include all regimes you want the system to have access to, not just the ones you wish to add.
+      description: 'Update an ''authorised system''. An authorised system is essentially a user of the API, and this is used to update the details of one. You don''t have to specify all properties when updating. If you specify `authorisations` though, you must include all regimes you want the system to have access to, not just the ones you wish to add.'
       tags:
         - admin
       parameters:
@@ -665,9 +568,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -687,7 +590,7 @@ paths:
                   type: string
                   example: Water Resources
                 status:
-                  description: Only 'active' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as 'inactive' rather than delete them
+                  description: 'Only ''active'' authorised system accounts can interact with the API. Because records will be linked to an authorised system, when they become redundant we mark them as ''inactive'' rather than delete them'
                   type: string
                   enum:
                     - active
@@ -696,7 +599,7 @@ paths:
                 authorisations:
                   type: array
                   items:
-                    description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+                    description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
                     type: string
                     enum:
                       - cfd
@@ -712,7 +615,7 @@ paths:
                 - pas
                 - wml
                 - wrls
-  /admin/{regime}/bill-runs/{billRunId}/send:
+  '/admin/{regime}/bill-runs/{billRunId}/send':
     patch:
       operationId: AdminSendBillRun
       description: Triggers creation of a transaction file containing all transactions in the bill run. Bill run must be `pending` else the request will be rejected. This endpoint will wait until the file has been created before returning a response.
@@ -724,7 +627,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -742,9 +645,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -753,7 +656,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the bill run is not in the right state
           content:
             application/json:
@@ -762,7 +665,7 @@ paths:
                   statusCode: 409
                   error: Conflict
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 does not have a status of 'pending'.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -771,7 +674,7 @@ paths:
                   statusCode: 422
                   error: Unprocessable Entity
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /admin/{regime}/customers:
+  '/admin/{regime}/customers':
     patch:
       operationId: SendCustomer
       description: Manually trigger the send customer files process. This triggers creation of a file of customer changes for each regime.
@@ -783,7 +686,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -792,7 +695,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "204":
+        '204':
           description: Success
   /admin/health/airbrake:
     get:
@@ -801,7 +704,7 @@ paths:
       tags:
         - admin
       responses:
-        "500":
+        '500':
           description: An error has been thrown on purpose by the API. Check either the production or non-production instance of Errbit to confirm it received the error
   /admin/health/database:
     get:
@@ -812,12 +715,31 @@ paths:
       tags:
         - admin
       responses:
-        "200":
+        '200':
           description: Success
-  /admin/test/{regime}/bill-runs:
+  '/admin/test/{regime}/bill-runs':
     post:
       operationId: CreateTestBillRun
-      description: "This endpoint creates a test bill run for a region. It is intended for quickly creating large bill runs so we can assess the performance and operation of endpoints when working with them. You can control the type of invoices generated within the bill run using the request payload. The types are\n- `standard` - 3 debit lines in an invoice\n- `mixed-invoice` - 2 debit lines and 1 credit line resulting in an invoice\n- `mixed-credit` - 2 credit lines and 1 debit line resulting in a credit note\n- `zero-value` - 3 debit transactions all with a charge value of 0\n- `deminimis` - 3 debit transactions that total less than £5\n- `minimum-charge` - 3 debit transactions that total less than £25 and are all subject to minimum charge\n\nBy default, every invoice created results in 3 transactions. So, the following request would result in a bill run with 100 invoices and 300 transactions.\n\n``` { \"region\": \"A\", \"mix\": [ { \"type\": \"mixed-invoice\", \"count\": 40 }, { \"type\": \"mixed-credit\", \"count\": 40 }, { \"type\": \"zero-value\", \"count\": 10 }, { \"type\": \"deminimis\", \"count\": 10 } ] } ```\n\nYou can affect the number of transactions per invoice by including the `transactionMultiplier` property in the request payload. The followng request would result in 1 `mixed-invoice` with 50 debit lines and 25 credit lines.\n\n``` { \"region\": \"A\", \"transactionMultiplier\": 25, \"mix\": [ { \"type\": \"mixed-invoice\", \"count\": 1 } ] } ```\n\nThe endpoint has been designed to generate the bill run as quickly as possible. To do this we **do not** call the rules service. The values used are based on real calculations, but should the rules service calculation change it won't be reflected here.\n\nThe endpoint returns the new bill run ID immediately, but may take sometime to create all the invoices. If you have access to it, check the log for a message that will confirm when the process is complete. "
+      description: |-
+        This endpoint creates a test bill run for a region. It is intended for quickly creating large bill runs so we can assess the performance and operation of endpoints when working with them. You can control the type of invoices generated within the bill run using the request payload. The types are
+        - `standard` - 3 debit lines in an invoice
+        - `mixed-invoice` - 2 debit lines and 1 credit line resulting in an invoice
+        - `mixed-credit` - 2 credit lines and 1 debit line resulting in a credit note
+        - `zero-value` - 3 debit transactions all with a charge value of 0
+        - `deminimis` - 3 debit transactions that total less than £5
+        - `minimum-charge` - 3 debit transactions that total less than £25 and are all subject to minimum charge
+
+        By default, every invoice created results in 3 transactions. So, the following request would result in a bill run with 100 invoices and 300 transactions.
+
+        ``` { "region": "A", "mix": [ { "type": "mixed-invoice", "count": 40 }, { "type": "mixed-credit", "count": 40 }, { "type": "zero-value", "count": 10 }, { "type": "deminimis", "count": 10 } ] } ```
+
+        You can affect the number of transactions per invoice by including the `transactionMultiplier` property in the request payload. The followng request would result in 1 `mixed-invoice` with 50 debit lines and 25 credit lines.
+
+        ``` { "region": "A", "transactionMultiplier": 25, "mix": [ { "type": "mixed-invoice", "count": 1 } ] } ```
+
+        The endpoint has been designed to generate the bill run as quickly as possible. To do this we **do not** call the rules service. The values used are based on real calculations, but should the rules service calculation change it won't be reflected here.
+
+        The endpoint returns the new bill run ID immediately, but may take sometime to create all the invoices. If you have access to it, check the log for a message that will confirm when the process is complete. 
       tags:
         - admin
       parameters:
@@ -826,7 +748,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -835,7 +757,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -844,7 +766,7 @@ paths:
                   billRun:
                     id: 2bbbe459-966e-4026-b5d2-2f10867bdddd
                     billRunNumber: 10004
-        "422":
+        '422':
           description: Failed - bill run cannot be generated because there is an issue with its data
           content:
             application/json:
@@ -858,7 +780,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: \"region\" must be one of [A, B, E, N, S, T, W, Y]
+                    message: '\"region\" must be one of [A, B, E, N, S, T, W, Y]'
       requestBody:
         content:
           application/json:
@@ -879,7 +801,7 @@ paths:
                     count: 10
                   - type: minimum-charge
                     count: 10
-  /admin/test/{regime}/customer-files:
+  '/admin/test/{regime}/customer-files':
     get:
       operationId: ListCustomerFilesTest
       description: Request a list of 'customer files'. Each record contains the details for a file of customer changes the API generated and sent to SSCL.
@@ -891,7 +813,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -900,7 +822,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -924,11 +846,11 @@ paths:
                       - A
                       - B
                       - E
-                      - "N"
+                      - 'N'
                       - S
                       - T
                       - W
-                      - "Y"
+                      - 'Y'
                     example: A
                   fileReference:
                     description: A 10-digit reference indicating the name of the customer file generated by the CM for notifying SSCL of new / updated customer records
@@ -938,12 +860,12 @@ paths:
                     description: Date and time the record was created
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   updatedAt:
                     description: Date and time the record was last updated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   status:
                     description: Current status of the customer file. Note - if a file has a status of `pending` for more than a few minutes it is likely an issue as occurred during the generation
                     type: string
@@ -956,25 +878,25 @@ paths:
                     description: Date and time at which the customer file was generated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
               example:
                 - id: d04652ab-8ddb-411e-b683-53c25855f7a3
                   regimeId: 34eb63e4-c538-48ca-9053-86164d12248c
                   region: T
                   fileReference: naltc50002
-                  createdAt: "2021-04-29T13:15:30.012Z"
-                  updatedAt: "2021-04-29T13:15:30.374Z"
+                  createdAt: '2021-04-29T13:15:30.012Z'
+                  updatedAt: '2021-04-29T13:15:30.374Z'
                   status: exported
-                  exportedAt: "2021-04-29T13:15:30.366Z"
+                  exportedAt: '2021-04-29T13:15:30.366Z'
                 - id: aed6eb7c-6876-4c32-a8a5-5bc84cf2b0f4
                   regimeId: 34eb63e4-c538-48ca-9053-86164d12248c
-                  region: "Y"
+                  region: 'Y'
                   fileReference: nalyc50002
-                  createdAt: "2021-04-29T13:15:30.413Z"
-                  updatedAt: "2021-04-29T13:15:30.690Z"
+                  createdAt: '2021-04-29T13:15:30.413Z'
+                  updatedAt: '2021-04-29T13:15:30.690Z'
                   status: exported
-                  exportedAt: "2021-04-29T13:15:30.683Z"
-  /admin/test/customer-files/{customerFileId}:
+                  exportedAt: '2021-04-29T13:15:30.683Z'
+  '/admin/test/customer-files/{customerFileId}':
     get:
       operationId: ViewCustomerFile
       description: Request details of a 'customer file'. Returns the 'customer file' record which details the file of customer changes the API generated and sent to SSCL. It also lists
@@ -991,7 +913,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -1015,11 +937,11 @@ paths:
                       - A
                       - B
                       - E
-                      - "N"
+                      - 'N'
                       - S
                       - T
                       - W
-                      - "Y"
+                      - 'Y'
                     example: A
                   fileReference:
                     description: A 10-digit reference indicating the name of the customer file generated by the CM for notifying SSCL of new / updated customer records
@@ -1029,12 +951,12 @@ paths:
                     description: Date and time the record was created
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   updatedAt:
                     description: Date and time the record was last updated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   status:
                     description: Current status of the customer file. Note - if a file has a status of `pending` for more than a few minutes it is likely an issue as occurred during the generation
                     type: string
@@ -1047,7 +969,7 @@ paths:
                     description: Date and time at which the customer file was generated
                     type: string
                     format: datetime
-                    example: "2020-09-11T11:56:41.578Z"
+                    example: '2020-09-11T11:56:41.578Z'
                   exportedCustomers:
                     type: array
                     items:
@@ -1071,33 +993,33 @@ paths:
                           description: Date and time the record was created
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
                         updatedAt:
                           description: Date and time the record was last updated
                           type: string
                           format: datetime
-                          example: "2020-09-11T11:56:41.578Z"
+                          example: '2020-09-11T11:56:41.578Z'
               example:
                 id: d04652ab-8ddb-411e-b683-53c25855f7a3
                 regimeId: 34eb63e4-c538-48ca-9053-86164d12248c
                 region: T
                 fileReference: naltc50002
-                createdAt: "2021-04-29T13:15:30.012Z"
-                updatedAt: "2021-04-29T13:15:30.374Z"
+                createdAt: '2021-04-29T13:15:30.012Z'
+                updatedAt: '2021-04-29T13:15:30.374Z'
                 status: exported
-                exportedAt: "2021-04-29T13:15:30.366Z"
+                exportedAt: '2021-04-29T13:15:30.366Z'
                 exportedCustomers:
                   - id: 726a005e-341c-4da6-915c-c94cea87dd59
                     customerReference: T12398729A
                     customerFileId: d04652ab-8ddb-411e-b683-53c25855f7a3
-                    createdAt: "2021-04-29T13:15:30.358Z"
-                    updatedAt: "2021-04-29T13:15:30.358Z"
+                    createdAt: '2021-04-29T13:15:30.358Z'
+                    updatedAt: '2021-04-29T13:15:30.358Z'
                   - id: 755dd2da-3be2-409f-83ec-c39ef48f664f
                     customerReference: T32178999B
                     customerFileId: d04652ab-8ddb-411e-b683-53c25855f7a3
-                    createdAt: "2021-04-29T13:15:30.358Z"
-                    updatedAt: "2021-04-29T13:15:30.358Z"
-        "404":
+                    createdAt: '2021-04-29T13:15:30.358Z'
+                    updatedAt: '2021-04-29T13:15:30.358Z'
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -1113,11 +1035,11 @@ paths:
       tags:
         - admin
       responses:
-        "204":
+        '204':
           description: Success
-        "400":
+        '400':
           description: Failure
-  /admin/test/transaction/{transactionId}:
+  '/admin/test/transaction/{transactionId}':
     get:
       operationId: ViewTestTransaction
       description: |-
@@ -1129,14 +1051,14 @@ paths:
         - name: transactionId
           in: path
           required: true
-          description: Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user
+          description: 'Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user'
           schema:
-            description: Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user
+            description: 'Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user'
             type: string
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -1160,7 +1082,7 @@ paths:
                   billRunId: 647196ac-83a8-4f5a-8436-6a2dac00b72d
                   customerReference: TH230000222
                   financialYear: 2018
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -1169,7 +1091,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: No transaction found with id 323d6e4d-2703-4790-a1d5-81532d4291fd
-  /v2/{regime}/bill-runs:
+  '/v2/{regime}/bill-runs':
     post:
       operationId: CreateBillRunV2
       description: This endpoint triggers creation of a bill run record for a region. Bill run contains no transactions on creation.
@@ -1182,7 +1104,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -1191,7 +1113,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -1216,7 +1138,7 @@ paths:
                 billRun:
                   id: 2bbbe459-966e-4026-b5d2-2f10867bdddd
                   billRunNumber: 10004
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -1225,7 +1147,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -1244,7 +1166,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: \"region\" must be one of [A, B, E, N, S, T, W, Y]
+                    message: '\"region\" must be one of [A, B, E, N, S, T, W, Y]'
       requestBody:
         content:
           application/json:
@@ -1258,17 +1180,17 @@ paths:
                     - A
                     - B
                     - E
-                    - "N"
+                    - 'N'
                     - S
                     - T
                     - W
-                    - "Y"
+                    - 'Y'
                   example: A
               required:
                 - region
             example:
               region: A
-  /v3/{regime}/bill-runs:
+  '/v3/{regime}/bill-runs':
     post:
       operationId: CreateBillRun
       description: This endpoint triggers creation of a bill run record for a region. Bill run contains no transactions on creation.
@@ -1280,7 +1202,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -1289,7 +1211,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -1314,7 +1236,7 @@ paths:
                 billRun:
                   id: 2bbbe459-966e-4026-b5d2-2f10867bdddd
                   billRunNumber: 10004
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -1323,7 +1245,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -1342,7 +1264,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: \"region\" must be one of [A, B, E, N, S, T, W, Y]
+                    message: '\"region\" must be one of [A, B, E, N, S, T, W, Y]'
       requestBody:
         content:
           application/json:
@@ -1356,11 +1278,11 @@ paths:
                     - A
                     - B
                     - E
-                    - "N"
+                    - 'N'
                     - S
                     - T
                     - W
-                    - "Y"
+                    - 'Y'
                   example: A
                 ruleset:
                   default: sroc
@@ -1375,7 +1297,7 @@ paths:
             example:
               region: A
               ruleset: sroc
-  /v2/{regime}/bill-runs/{billRunId}/transactions:
+  '/v2/{regime}/bill-runs/{billRunId}/transactions':
     post:
       operationId: AddBillRunTransactionV2
       description: Triggers creation of a transaction and immediately adds it to the specified bill run.
@@ -1387,7 +1309,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -1405,7 +1327,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -1416,7 +1338,7 @@ paths:
                     type: object
                     properties:
                       id:
-                        description: Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user
+                        description: 'Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user'
                         type: string
                         format: uuid
                         example: fd2ab097-3097-42bd-849e-046aa250a0d0
@@ -1429,7 +1351,7 @@ paths:
                 transaction:
                   id: fd88e6c5-8da8-4e4f-b22f-c66554cd5bf3
                   clientId: 2395429b-e703-43bc-8522-ce3f67507ffa
-        "400":
+        '400':
           description: Failed - issue with the Rules Service
           content:
             application/json:
@@ -1444,7 +1366,7 @@ paths:
                     statusCode: 400
                     error: Bad Request
                     message: 'Rules service error: [error message]'
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -1453,7 +1375,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -1462,7 +1384,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -1478,7 +1400,7 @@ paths:
                     error: Conflict
                     message: A transaction with Client ID '2395429b-e703-43bc-8522-ce3f67507ffa' for Regime 'wrls' already exists.
                     clientId: 2395429b-e703-43bc-8522-ce3f67507ff
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -1492,7 +1414,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: Ruleset not found, please check periodStart value.
+                    message: 'Ruleset not found, please check periodStart value.'
                 Rule service data error:
                   value:
                     statusCode: 422
@@ -1518,7 +1440,7 @@ paths:
                   type: string
                   example: 31-MAR-2019
                 subjectToMinimumCharge:
-                  description: Boolean indicator to show whether a transaction is subject to minimum charge. For example, transactions for new licences are subject to minimum charge
+                  description: 'Boolean indicator to show whether a transaction is subject to minimum charge. For example, transactions for new licences are subject to minimum charge'
                   type: boolean
                   example: false
                 credit:
@@ -1617,10 +1539,10 @@ paths:
                   type: string
                   example: B19120000A
                 lineDescription:
-                  description: Description of the reason for the charge, to appear on the invoice sent to the customer
+                  description: 'Description of the reason for the charge, to appear on the invoice sent to the customer'
                   type: string
                   maxLength: 240
-                  example: Borehole at Runhall, Norfolk.
+                  example: 'Borehole at Runhall, Norfolk.'
                 licenceNumber:
                   description: The reference of the licence to which a charge / transaction relates
                   type: string
@@ -1634,7 +1556,7 @@ paths:
                   description: An indicator (normally an integer) to distinguish between the different charge elements on a specific licence.
                   type: string
                   nullable: true
-                  example: "1"
+                  example: '1'
                 batchNumber:
                   description: Number to be generated by WRLS indicating the 'batch' in which creation of a transaction was requested
                   type: string
@@ -1647,11 +1569,11 @@ paths:
                     - A
                     - B
                     - E
-                    - "N"
+                    - 'N'
                     - S
                     - T
                     - W
-                    - "Y"
+                    - 'Y'
                   example: A
                 areaCode:
                   description: Code identifying the historic area (within a region) for the transaction.
@@ -1682,7 +1604,7 @@ paths:
                     - AGY3S
                     - AGY4N
                     - AGY4S
-                    - "N"
+                    - 'N'
                     - SE
                     - SE1
                     - SE2
@@ -1728,7 +1650,7 @@ paths:
               credit: false
               billableDays: 310
               authorisedDays: 365
-              volume: "6.22"
+              volume: '6.22'
               source: Supported
               season: Summer
               loss: Low
@@ -1743,12 +1665,12 @@ paths:
               lineDescription: Well at Chigley Town Hall
               licenceNumber: TONY/TF9222/37
               chargePeriod: 01-APR-2018 - 31-MAR-2019
-              chargeElementId: ""
+              chargeElementId: ''
               batchNumber: TONY10
               region: W
               areaCode: ARCA
               clientId: 2395429b-e703-43bc-8522-ce3f67507ffa
-  /v3/{regime}/bill-runs/{billRunId}/transactions:
+  '/v3/{regime}/bill-runs/{billRunId}/transactions':
     post:
       operationId: AddBillRunTransaction
       description: Triggers creation of a transaction and immediately adds it to the specified bill run.
@@ -1760,7 +1682,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -1778,7 +1700,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -1789,7 +1711,7 @@ paths:
                     type: object
                     properties:
                       id:
-                        description: Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user
+                        description: 'Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user'
                         type: string
                         format: uuid
                         example: fd2ab097-3097-42bd-849e-046aa250a0d0
@@ -1802,7 +1724,7 @@ paths:
                 transaction:
                   id: fd88e6c5-8da8-4e4f-b22f-c66554cd5bf3
                   clientId: 2395429b-e703-43bc-8522-ce3f67507ffa
-        "400":
+        '400':
           description: Failed - issue with the Rules Service
           content:
             application/json:
@@ -1817,7 +1739,7 @@ paths:
                     statusCode: 400
                     error: Bad Request
                     message: 'Rules service error: [error message]'
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -1826,7 +1748,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -1835,7 +1757,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -1851,7 +1773,7 @@ paths:
                     error: Conflict
                     message: A transaction with Client ID '2395429b-e703-43bc-8522-ce3f67507ffa' for Regime 'wrls' already exists.
                     clientId: 2395429b-e703-43bc-8522-ce3f67507ff
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -1865,7 +1787,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: Ruleset not found, please check periodStart value.
+                    message: 'Ruleset not found, please check periodStart value.'
                 Rule service data error:
                   value:
                     statusCode: 422
@@ -1900,7 +1822,7 @@ paths:
                       type: string
                       example: 31-MAR-2019
                     subjectToMinimumCharge:
-                      description: Boolean indicator to show whether a transaction is subject to minimum charge. For example, transactions for new licences are subject to minimum charge
+                      description: 'Boolean indicator to show whether a transaction is subject to minimum charge. For example, transactions for new licences are subject to minimum charge'
                       type: boolean
                       example: false
                     credit:
@@ -1999,10 +1921,10 @@ paths:
                       type: string
                       example: B19120000A
                     lineDescription:
-                      description: Description of the reason for the charge, to appear on the invoice sent to the customer
+                      description: 'Description of the reason for the charge, to appear on the invoice sent to the customer'
                       type: string
                       maxLength: 240
-                      example: Borehole at Runhall, Norfolk.
+                      example: 'Borehole at Runhall, Norfolk.'
                     licenceNumber:
                       description: The reference of the licence to which a charge / transaction relates
                       type: string
@@ -2016,7 +1938,7 @@ paths:
                       description: An indicator (normally an integer) to distinguish between the different charge elements on a specific licence.
                       type: string
                       nullable: true
-                      example: "1"
+                      example: '1'
                     batchNumber:
                       description: Number to be generated by WRLS indicating the 'batch' in which creation of a transaction was requested
                       type: string
@@ -2029,11 +1951,11 @@ paths:
                         - A
                         - B
                         - E
-                        - "N"
+                        - 'N'
                         - S
                         - T
                         - W
-                        - "Y"
+                        - 'Y'
                       example: A
                     areaCode:
                       description: Code identifying the historic area (within a region) for the transaction.
@@ -2064,7 +1986,7 @@ paths:
                         - AGY3S
                         - AGY4N
                         - AGY4S
-                        - "N"
+                        - 'N'
                         - SE
                         - SE1
                         - SE2
@@ -2170,7 +2092,7 @@ paths:
                         - AGY3S
                         - AGY4N
                         - AGY4S
-                        - "N"
+                        - 'N'
                         - SE
                         - SE1
                         - SE2
@@ -2212,7 +2134,7 @@ paths:
                     chargeCategoryDescription:
                       description: Description associated with the charge reference (category code)
                       type: string
-                      example: Medium loss non-tidal abstraction of water greater than 35,833 up to and including 166,667 megalitres a year where a Tier 2 model applies.
+                      example: 'Medium loss non-tidal abstraction of water greater than 35,833 up to and including 166,667 megalitres a year where a Tier 2 model applies.'
                     chargePeriod:
                       description: The charge period for a transaction (i.e. charge period start date to charge period end date)
                       type: string
@@ -2236,10 +2158,10 @@ paths:
                       maxLength: 150
                       example: 7/34/16/*G/0093
                     lineDescription:
-                      description: Description of the reason for the charge, to appear on the invoice sent to the customer
+                      description: 'Description of the reason for the charge, to appear on the invoice sent to the customer'
                       type: string
                       maxLength: 240
-                      example: Borehole at Runhall, Norfolk.
+                      example: 'Borehole at Runhall, Norfolk.'
                     loss:
                       description: Loss on which charge calculation based
                       type: string
@@ -2256,11 +2178,11 @@ paths:
                         - A
                         - B
                         - E
-                        - "N"
+                        - 'N'
                         - S
                         - T
                         - W
-                        - "Y"
+                        - 'Y'
                       example: A
                     regionalChargingArea:
                       description: Name of the region to be used when determining the regional factor to be applied for a compensation charge
@@ -2289,7 +2211,7 @@ paths:
                       type: boolean
                       example: true
                     supportedSource:
-                      description: Name of the supported source relevant to the charge, where applicable
+                      description: 'Name of the supported source relevant to the charge, where applicable'
                       type: boolean
                       example: true
                     supportedSourceName:
@@ -2371,7 +2293,7 @@ paths:
                   credit: false
                   billableDays: 310
                   authorisedDays: 365
-                  volume: "6.22"
+                  volume: '6.22'
                   source: Supported
                   season: Summer
                   loss: Low
@@ -2386,7 +2308,7 @@ paths:
                   lineDescription: Well at Chigley Town Hall
                   licenceNumber: TONY/TF9222/37
                   chargePeriod: 01-APR-2018 - 31-MAR-2019
-                  chargeElementId: ""
+                  chargeElementId: ''
                   batchNumber: TONY10
                   region: W
                   areaCode: ARCA
@@ -2422,7 +2344,7 @@ paths:
                   waterCompanyCharge: false
                   waterUndertaker: false
                   winterOnly: false
-  /v2/{regime}/bill-runs/{billRunId}:
+  '/v2/{regime}/bill-runs/{billRunId}':
     get:
       operationId: ViewBillRun
       description: Request to view a single bill run based on the bill run ID.
@@ -2434,7 +2356,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -2452,7 +2374,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -2480,11 +2402,11 @@ paths:
                           - A
                           - B
                           - E
-                          - "N"
+                          - 'N'
                           - S
                           - T
                           - W
-                          - "Y"
+                          - 'Y'
                         example: A
                       status:
                         description: Indicator to show the progress of a bill run towards billed status
@@ -2613,7 +2535,7 @@ paths:
                       invoiceCount: 0
                       invoiceValue: 0
                       netTotal: 0
-                      transactionFileReference: ""
+                      transactionFileReference: ''
                       invoices: []
                 02 Transactions added:
                   value:
@@ -2627,7 +2549,7 @@ paths:
                       invoiceCount: 0
                       invoiceValue: 0
                       netTotal: 2500
-                      transactionFileReference: ""
+                      transactionFileReference: ''
                       invoices:
                         - id: aa630ae0-0e51-4166-9025-66576c513f7f
                           customerReference: TH150000020
@@ -2635,7 +2557,7 @@ paths:
                           deminimisInvoice: false
                           zeroValueInvoice: false
                           minimumChargeInvoice: false
-                          transactionReference: ""
+                          transactionReference: ''
                           creditLineValue: 0
                           debitLineValue: 2500
                           netTotal: 2500
@@ -2658,7 +2580,7 @@ paths:
                       invoiceCount: 0
                       invoiceValue: 0
                       netTotal: 2500
-                      transactionFileReference: ""
+                      transactionFileReference: ''
                       invoices:
                         - id: aa630ae0-0e51-4166-9025-66576c513f7f
                           customerReference: TH150000020
@@ -2666,7 +2588,7 @@ paths:
                           deminimisInvoice: false
                           zeroValueInvoice: false
                           minimumChargeInvoice: false
-                          transactionReference: ""
+                          transactionReference: ''
                           creditLineValue: 0
                           debitLineValue: 2500
                           netTotal: 2500
@@ -2689,7 +2611,7 @@ paths:
                       invoiceCount: 1
                       invoiceValue: 2500
                       netTotal: 2500
-                      transactionFileReference: ""
+                      transactionFileReference: ''
                       invoices:
                         - id: aa630ae0-0e51-4166-9025-66576c513f7f
                           customerReference: TH150000020
@@ -2697,7 +2619,7 @@ paths:
                           deminimisInvoice: false
                           zeroValueInvoice: false
                           minimumChargeInvoice: false
-                          transactionReference: ""
+                          transactionReference: ''
                           creditLineValue: 0
                           debitLineValue: 2500
                           netTotal: 2500
@@ -2720,7 +2642,7 @@ paths:
                       invoiceCount: 1
                       invoiceValue: 2500
                       netTotal: 2500
-                      transactionFileReference: ""
+                      transactionFileReference: ''
                       invoices:
                         - id: aa630ae0-0e51-4166-9025-66576c513f7f
                           customerReference: TH150000020
@@ -2728,7 +2650,7 @@ paths:
                           deminimisInvoice: false
                           zeroValueInvoice: false
                           minimumChargeInvoice: false
-                          transactionReference: ""
+                          transactionReference: ''
                           creditLineValue: 0
                           debitLineValue: 2500
                           netTotal: 2500
@@ -2813,7 +2735,7 @@ paths:
                       invoiceCount: 0
                       invoiceValue: 0
                       netTotal: 0
-                      transactionFileReference: ""
+                      transactionFileReference: ''
                       invoices:
                         - id: aa630ae0-0e51-4166-9025-66576c513f7f
                           customerReference: TH150000020
@@ -2821,7 +2743,7 @@ paths:
                           deminimisInvoice: false
                           zeroValueInvoice: false
                           minimumChargeInvoice: false
-                          transactionReference: ""
+                          transactionReference: ''
                           creditLineValue: 2500
                           debitLineValue: 2500
                           netTotal: 0
@@ -2832,7 +2754,7 @@ paths:
                               licenceNumber: FOOO/BARRR/306
                             - id: 77502697-e274-491a-bd6d-84ec557b0485
                               licenceNumber: FOOO/BARRR/307
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -2841,7 +2763,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -2850,7 +2772,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -2861,7 +2783,7 @@ paths:
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
     delete:
       operationId: DeleteBillRun
-      description: Deletes a specified bill run and all invoices, licences, and transactions linked to it. Bill run must be unbilled.
+      description: 'Deletes a specified bill run and all invoices, licences, and transactions linked to it. Bill run must be unbilled.'
       tags:
         - bill-run
       parameters:
@@ -2870,7 +2792,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -2888,9 +2810,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -2899,7 +2821,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -2908,7 +2830,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -2917,7 +2839,7 @@ paths:
                   statusCode: 409
                   error: Conflict
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be edited because its status is billed.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -2926,7 +2848,7 @@ paths:
                   statusCode: 422
                   error: Unprocessable Entity
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /v2/{regime}/bill-runs/{billRunId}/generate:
+  '/v2/{regime}/bill-runs/{billRunId}/generate':
     patch:
       operationId: GenerateBillRun
       description: Generate the summary for the specified bill run. Bill run must be unbilled. Must take place before bill run is sent.
@@ -2938,7 +2860,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -2956,9 +2878,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -2967,7 +2889,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -2976,7 +2898,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -2996,7 +2918,7 @@ paths:
                     statusCode: 409
                     error: Conflict
                     message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 has already been generated.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3011,7 +2933,7 @@ paths:
                     statusCode: 422
                     error: Unprocessable Entity
                     message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be generated because it has no transactions
-  /v2/{regime}/bill-runs/{billRunId}/status:
+  '/v2/{regime}/bill-runs/{billRunId}/status':
     get:
       operationId: ViewBillRunStatus
       description: Request to view the status of a single bill run based on the bill run ID. It is intended to help client systems quickly determine if a bill run is ready to be viewed after a `/generate` request and reduce the load on the API.
@@ -3023,7 +2945,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -3041,7 +2963,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -3085,7 +3007,7 @@ paths:
                 08 Not billed:
                   value:
                     status: billing_not_required
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -3094,7 +3016,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -3103,7 +3025,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3112,7 +3034,7 @@ paths:
                   statusCode: 422
                   error: Unprocessable Entity
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /v2/{regime}/bill-runs/{billRunId}/approve:
+  '/v2/{regime}/bill-runs/{billRunId}/approve':
     patch:
       operationId: ApproveBillRun
       description: Approves a specified bill run. Bill run must have a status of 'generated'. Must take place before bill run is sent.
@@ -3124,7 +3046,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -3142,9 +3064,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -3153,7 +3075,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -3162,7 +3084,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -3177,7 +3099,7 @@ paths:
                     statusCode: 409
                     error: Conflict
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 does not have a status of 'generated'.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3187,7 +3109,7 @@ paths:
                     statusCode: 422
                     error: Unprocessable Entity
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /v2/{regime}/bill-runs/{billRunId}/send:
+  '/v2/{regime}/bill-runs/{billRunId}/send':
     patch:
       operationId: SendBillRun
       description: |
@@ -3297,7 +3219,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -3315,9 +3237,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -3326,7 +3248,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -3335,7 +3257,7 @@ paths:
                   statusCode: 404
                   error: Not found
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -3350,7 +3272,7 @@ paths:
                     statusCode: 409
                     error: Conflict
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 does not have a status of 'approved'.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3360,10 +3282,10 @@ paths:
                     statusCode: 422
                     error: Unprocessable Entity
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /v2/{regime}/bill-runs/{billRunId}/invoices/{invoiceId}:
+  '/v2/{regime}/bill-runs/{billRunId}/invoices/{invoiceId}':
     get:
       operationId: ViewBillRunInvoice
-      description: Request to view details of an invoice. Returns information about the invoice, each of the licences linked to it, and all transactions linked to each licence.
+      description: 'Request to view details of an invoice. Returns information about the invoice, each of the licences linked to it, and all transactions linked to each licence.'
       tags:
         - bill-run
       parameters:
@@ -3372,7 +3294,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -3399,7 +3321,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -3491,7 +3413,7 @@ paths:
                             type: object
                             properties:
                               id:
-                                description: Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user
+                                description: 'Internal ID (GUID) allocated by the CM when creating a transaction, not necessarily visible to the user'
                                 type: string
                                 format: uuid
                                 example: fd2ab097-3097-42bd-849e-046aa250a0d0
@@ -3509,7 +3431,7 @@ paths:
                                 type: boolean
                                 example: false
                               subjectToMinimumCharge:
-                                description: Boolean indicator to show whether a transaction is subject to minimum charge. For example, transactions for new licences are subject to minimum charge
+                                description: 'Boolean indicator to show whether a transaction is subject to minimum charge. For example, transactions for new licences are subject to minimum charge'
                                 type: boolean
                                 example: false
                               minimumChargeAdjustment:
@@ -3517,10 +3439,10 @@ paths:
                                 type: boolean
                                 example: false
                               lineDescription:
-                                description: Description of the reason for the charge, to appear on the invoice sent to the customer
+                                description: 'Description of the reason for the charge, to appear on the invoice sent to the customer'
                                 type: string
                                 maxLength: 240
-                                example: Borehole at Runhall, Norfolk.
+                                example: 'Borehole at Runhall, Norfolk.'
                               periodStart:
                                 description: The start date of the charge period covered by a transaction
                                 type: string
@@ -3563,8 +3485,8 @@ paths:
                           subjectToMinimumCharge: false
                           minimumChargeAdjustment: false
                           lineDescription: Well at Chigley Town Hall
-                          periodStart: "2018-04-01T00:00:00.000Z"
-                          periodEnd: "2019-03-31T00:00:00.000Z"
+                          periodStart: '2018-04-01T00:00:00.000Z'
+                          periodEnd: '2019-03-31T00:00:00.000Z'
                           compensationCharge: false
                           calculation:
                             __DecisionID__: ba31bd7b-a13e-4820-b15d-6f70fb2c52490
@@ -3595,7 +3517,7 @@ paths:
                               s130Agreement: null
                               eiucSourceFactor: 0
                               eiucFactor: 0
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -3604,7 +3526,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -3619,7 +3541,7 @@ paths:
                     statusCode: 404
                     error: Not found
                     message: Invoice aa630ae0-0e51-4166-9025-66576c513f7f is unknown.
-        "409":
+        '409':
           description: Failed - the invoice is not linked to that bill run
           content:
             application/json:
@@ -3628,7 +3550,7 @@ paths:
                   statusCode: 409
                   error: Conflict
                   message: Invoice db82bf38-638a-44d3-b1b3-1ae8524d9c38 is not linked to bill run 212b0102-ca9c-4b41-881b-f20e7721f2c9.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3649,7 +3571,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -3676,9 +3598,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -3687,7 +3609,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -3702,7 +3624,7 @@ paths:
                     statusCode: 404
                     error: Not found
                     message: Invoice aa630ae0-0e51-4166-9025-66576c513f7f is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -3711,7 +3633,7 @@ paths:
                   statusCode: 409
                   error: Conflict
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be edited because its status is billed.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3721,10 +3643,10 @@ paths:
                     statusCode: 422
                     error: Unprocessable Entity
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /v2/{regime}/calculate-charge:
+  '/v2/{regime}/calculate-charge':
     post:
       operationId: CalculateChargeV2
-      description: Request to calculate a standalone charge based on a set of charge parameters, without creating a transaction. Input and output data is not retained in the CM.
+      description: 'Request to calculate a standalone charge based on a set of charge parameters, without creating a transaction. Input and output data is not retained in the CM.'
       tags:
         - calculate
       parameters:
@@ -3733,7 +3655,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -3742,7 +3664,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -3802,7 +3724,7 @@ paths:
                   eiucSourceFactor: 0
                   eiuc: 0
                   suc: 1495
-        "400":
+        '400':
           description: Failed - issue with the Rules Service
           content:
             application/json:
@@ -3817,7 +3739,7 @@ paths:
                     statusCode: 400
                     error: Bad Request
                     message: 'Rules service error: [error message]'
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -3826,7 +3748,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -3835,7 +3757,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: Ruleset not found, please check periodStart value.
+                    message: 'Ruleset not found, please check periodStart value.'
                 Rule service data error:
                   value:
                     statusCode: 422
@@ -3973,7 +3895,7 @@ paths:
               credit: false
               billableDays: 214
               authorisedDays: 214
-              volume: "3.5865"
+              volume: '3.5865'
               source: Supported
               season: Summer
               loss: Low
@@ -3985,10 +3907,10 @@ paths:
               section126Factor: 1
               section127Agreement: false
               section130Agreement: false
-  /v3/{regime}/calculate-charge:
+  '/v3/{regime}/calculate-charge':
     post:
       operationId: CalculateCharge
-      description: Request to calculate a standalone charge based on a set of charge parameters, without creating a transaction. Input and output data is not retained in the CM.
+      description: 'Request to calculate a standalone charge based on a set of charge parameters, without creating a transaction. Input and output data is not retained in the CM.'
       tags:
         - calculate
       parameters:
@@ -3997,7 +3919,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -4006,7 +3928,7 @@ paths:
               - wrls
             example: wrls
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -4071,11 +3993,11 @@ paths:
                             type: integer
                             example: 200000
                           waterCompanyChargeValue:
-                            description: Value in pence of the water company supplement, where applied
+                            description: 'Value in pence of the water company supplement, where applied'
                             type: integer
                             example: 78500
                           supportedSourceValue:
-                            description: Value in pence of the supported source supplement, where applied
+                            description: 'Value in pence of the supported source supplement, where applied'
                             type: integer
                             example: 124800
                           winterOnlyFactor:
@@ -4091,7 +4013,7 @@ paths:
                             type: number
                             example: 0.5
                           compensationChargePercent:
-                            description: The percentage multiplier applied to a compensation charge, based on the regionalChargingArea
+                            description: 'The percentage multiplier applied to a compensation charge, based on the regionalChargingArea'
                             type: number
                             example: 0
               examples:
@@ -4118,7 +4040,7 @@ paths:
                       section130Factor: 0.5
                       section127Factor: null
                       compensationChargePercent: 70
-        "400":
+        '400':
           description: Failed - issue with the Rules Service
           content:
             application/json:
@@ -4133,7 +4055,7 @@ paths:
                     statusCode: 400
                     error: Bad Request
                     message: 'Rules service error: [error message]'
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -4142,7 +4064,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -4151,7 +4073,7 @@ paths:
                   value:
                     statusCode: 422
                     error: Unprocessable Entity
-                    message: Ruleset not found, please check periodStart value.
+                    message: 'Ruleset not found, please check periodStart value.'
                 Rule service data error:
                   value:
                     statusCode: 422
@@ -4393,7 +4315,7 @@ paths:
                       type: boolean
                       example: true
                     supportedSource:
-                      description: Name of the supported source relevant to the charge, where applicable
+                      description: 'Name of the supported source relevant to the charge, where applicable'
                       type: boolean
                       example: true
                     twoPartTariff:
@@ -4438,7 +4360,7 @@ paths:
                   credit: false
                   billableDays: 214
                   authorisedDays: 214
-                  volume: "3.5865"
+                  volume: '3.5865'
                   source: Supported
                   season: Summer
                   loss: Low
@@ -4458,9 +4380,9 @@ paths:
                   credit: false
                   billableDays: 214
                   authorisedDays: 214
-                  abatementFactor: "1.0"
-                  actualVolume: "2.0"
-                  aggregateProportion: "1.0"
+                  abatementFactor: '1.0'
+                  actualVolume: '2.0'
+                  aggregateProportion: '1.0'
                   chargeCategoryCode: 2.1.211
                   compensationCharge: true
                   loss: High
@@ -4470,11 +4392,11 @@ paths:
                   supportedSource: true
                   supportedSourceName: Candover
                   twoPartTariff: false
-                  authorisedVolume: "2.0"
+                  authorisedVolume: '2.0'
                   waterCompanyCharge: false
                   waterUndertaker: false
                   winterOnly: false
-  /v2/{regime}/customer-changes:
+  '/v2/{regime}/customer-changes':
     post:
       operationId: CreateCustomerChange
       description: |
@@ -4551,7 +4473,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -4560,9 +4482,9 @@ paths:
               - wrls
             example: wrls
       responses:
-        "201":
+        '201':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -4584,11 +4506,11 @@ paths:
                     - A
                     - B
                     - E
-                    - "N"
+                    - 'N'
                     - S
                     - T
                     - W
-                    - "Y"
+                    - 'Y'
                   example: A
                 customerReference:
                   description: Customer Number of the invoicee
@@ -4650,7 +4572,7 @@ paths:
               addressLine1: 1 Monster Lane
               addressLine2: High Town
               addressLine4: Chigley
-  /v2/{regime}/customer-files/{days}:
+  '/v2/{regime}/customer-files/{days}':
     get:
       operationId: ListCustomerFiles
       description: Request a list of 'customer files'. Each record contains the details for a file of customer changes the API generated and sent to SSCL.
@@ -4662,7 +4584,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -4672,15 +4594,15 @@ paths:
             example: wrls
         - name: days
           in: path
-          description: OPTIONAL. Number of days of customer files to retrieve, where 0 = files generated today, 1 = files generated yesterday and today, etc. Defaults to 30 days if not provided
+          description: 'OPTIONAL. Number of days of customer files to retrieve, where 0 = files generated today, 1 = files generated yesterday and today, etc. Defaults to 30 days if not provided'
           schema:
-            description: Number of days of customer files to retrieve, where 0 = files generated today, 1 = files generated yesterday and today, etc.
+            description: 'Number of days of customer files to retrieve, where 0 = files generated today, 1 = files generated yesterday and today, etc.'
             type: integer
             minimum: 0
             default: 30
             example: 15
       responses:
-        "200":
+        '200':
           description: Success
           content:
             application/json:
@@ -4710,7 +4632,7 @@ paths:
                       description: Date and time at which the customer file was generated
                       type: string
                       format: datetime
-                      example: "2020-09-11T11:56:41.578Z"
+                      example: '2020-09-11T11:56:41.578Z'
                     exportedCustomers:
                       type: array
                       items:
@@ -4721,7 +4643,7 @@ paths:
                 - id: 9523ff61-bd21-4800-aa7d-d97aa6c923aa
                   fileReference: nalac50001
                   status: exported
-                  exportedAt: "2021-09-22T12:34:56.789Z"
+                  exportedAt: 2021-09-22T12:34:56.789Z
                   exportedCustomers:
                     - AB01BEEB
                     - BB01BEEB
@@ -4729,23 +4651,23 @@ paths:
                 - id: aa271bc5-0e36-4aeb-b636-64d95482825f
                   fileReference: nalac50002
                   status: exported
-                  exportedAt: "2021-09-23T13:57:24.680Z"
+                  exportedAt: 2021-09-23T13:57:24.680Z
                   exportedCustomers:
                     - DB02BEEB
                     - EB02BEEB
                     - FB02BEEB
-        "400":
+        '400':
           description: Failed - issue with the request parameter
           content:
             application/json:
               example:
-                statusCode: 400,
+                statusCode: '400,'
                 error: Bad Request
                 message: Invalid request params input
-  /v2/{regime}/bill-runs/{rebillBillRunId}/invoices/{rebillInvoiceId}/rebill:
+  '/v2/{regime}/bill-runs/{rebillBillRunId}/invoices/{rebillInvoiceId}/rebill':
     patch:
       operationId: RebillBillRunInvoice
-      description: Request to rebill an invoice. Returns ID of the invoice that will cancel out the original invoice, and the one to replace it.
+      description: 'Request to rebill an invoice. Returns ID of the invoice that will cancel out the original invoice, and the one to replace it.'
       tags:
         - bill-run
       parameters:
@@ -4754,7 +4676,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -4781,7 +4703,7 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "201":
+        '201':
           description: Success
           content:
             application/json:
@@ -4812,7 +4734,7 @@ paths:
                     rebilledType: C
                   - id: db82bf38-638a-44d3-b1b3-1ae8524d9c38
                     rebilledType: R
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -4821,7 +4743,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -4836,7 +4758,7 @@ paths:
                     statusCode: 404
                     error: Not found
                     message: Invoice aa630ae0-0e51-4166-9025-66576c513f7f is unknown.
-        "409":
+        '409':
           description: Failed - the invoice has already been rebilled
           content:
             application/json:
@@ -4861,7 +4783,7 @@ paths:
                     statusCode: 409
                     error: Conflict
                     message: Invoice ba31bd7b-a13e-4820-b15d-6f70fb2c52490 is for region T but bill run aa630ae0-0e51-4166-9025-66576c513f7f is for region A.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -4871,7 +4793,7 @@ paths:
                     statusCode: 422
                     error: Unprocessable Entity
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
-  /v2/{regime}/bill-runs/{billRunId}/licences/{licenceId}:
+  '/v2/{regime}/bill-runs/{billRunId}/licences/{licenceId}':
     delete:
       operationId: DeleteBillRunLicence
       description: Delete the specified licence and all linked transactions. The linked bill run status will temporarily be set to `pending` during deletion and restored to its original status when deletion is complete. As part of the deletion the linked invoice and bill run will also be updated. If this results in the linked invoice being empty then it will also be deleted. If _this_ results in the bill run being empty then its status will be set to `initialised`.
@@ -4883,7 +4805,7 @@ paths:
           required: true
           description: Charging regime to use
           schema:
-            description: Short reference for a regime, referred to as a 'slug'. This is also what we expect to see in the path as the regime identifier when making a request
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
             type: string
             enum:
               - cfd
@@ -4910,9 +4832,9 @@ paths:
             format: uuid
             example: fd2ab097-3097-42bd-849e-046aa250a0d0
       responses:
-        "204":
+        '204':
           description: Success
-        "403":
+        '403':
           description: Failed - not authorised
           content:
             application/json:
@@ -4921,7 +4843,7 @@ paths:
                   statusCode: 403
                   error: Forbidden
                   message: Unauthorised for regime 'wrls'
-        "404":
+        '404':
           description: Failed - unknown ID
           content:
             application/json:
@@ -4936,7 +4858,7 @@ paths:
                     statusCode: 404
                     error: Not found
                     message: Licence 458d2739-6ae6-4919-ac12-5536589d3af9 is unknown.
-        "409":
+        '409':
           description: Failed - the action conflicts with something
           content:
             application/json:
@@ -4945,7 +4867,7 @@ paths:
                   statusCode: 409
                   error: Conflict
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be edited because its status is billed.
-        "422":
+        '422':
           description: Failed - issue with the requested data
           content:
             application/json:
@@ -4961,8 +4883,8 @@ components:
   securitySchemes:
     OAuth2:
       type: oauth2
-      description: The API uses [AWS Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html) to manage authentication and authorisation. To use it you will first need a cognito client ID and password. You then use these to request a bearer token from AWS Cognito. The bearer token is then sent in the `Authorisation` header of your request
+      description: 'The API uses [AWS Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html) to manage authentication and authorisation. To use it you will first need a cognito client ID and password. You then use these to request a bearer token from AWS Cognito. The bearer token is then sent in the `Authorisation` header of your request'
       flows:
         clientCredentials:
-          tokenUrl: https://chargingmoduleapi.auth.eu-west-1.amazoncognito.com/oauth2/token
+          tokenUrl: 'https://chargingmoduleapi.auth.eu-west-1.amazoncognito.com/oauth2/token'
           scopes: {}
