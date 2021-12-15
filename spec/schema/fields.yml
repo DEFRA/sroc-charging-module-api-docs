@@ -110,7 +110,7 @@ billRunNumber:
 billRunStatus:
   description: "Indicator to show the progress of a bill run towards billed status"
   type: string
-  enum: [approved, billed, billing_not_required, generating, generated, initialised, pending]
+  enum: [approved, billed, billing_not_required, generated, initialised, pending]
   example: 'billed'
 billableDays:
   description: "The number of days covered by a charge"

@@ -65,7 +65,7 @@ get:
                   id: 'fd2ab097-3097-42bd-849e-046aa250a0d0'
                   billRunNumber: 10001
                   region: 'W'
-                  status: 'generating'
+                  status: 'pending'
                   creditNoteCount: 0
                   creditNoteValue: 0
                   invoiceCount: 0
