@@ -234,6 +234,9 @@ paths:
   '/v2/{regime}/bill-runs/{billRunId}/licences/{licenceId}':
     $ref: 'paths/v2/bill_runs/licences/licence.yml'
 
+  '/v3/{regime}/bill-runs/{billRunId}/licences/{licenceId}':
+    $ref: 'paths/v3/bill_runs/licences/licence.yml'
+
 security:
   - OAuth2: []
 
