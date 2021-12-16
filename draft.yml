@@ -3561,6 +3561,90 @@ paths:
                     error: Unprocessable Entity
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
     delete:
+      operationId: DeleteBillRunInvoiceV2
+      description: Delete the specified invoice and all linked licences and transactions. As part of the deletion the linked bill run will be updated.
+      tags:
+        - bill-run
+      parameters:
+        - name: regime
+          in: path
+          required: true
+          description: Charging regime to use
+          schema:
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
+            type: string
+            enum:
+              - cfd
+              - pas
+              - wml
+              - wrls
+            example: wrls
+        - name: billRunId
+          in: path
+          required: true
+          description: Internal ID (GUID) allocated by the CM when creating a bill run.
+          schema:
+            description: Internal ID (GUID) allocated by the CM when creating a bill run.
+            type: string
+            format: uuid
+            example: fd2ab097-3097-42bd-849e-046aa250a0d0
+        - name: invoiceId
+          in: path
+          required: true
+          description: Internal ID (GUID) allocated by the CM when creating an invoice.
+          schema:
+            description: Internal ID (GUID) allocated by the CM when creating an invoice.
+            type: string
+            format: uuid
+            example: fd2ab097-3097-42bd-849e-046aa250a0d0
+      responses:
+        '204':
+          description: Success
+        '403':
+          description: Failed - not authorised
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 403
+                  error: Forbidden
+                  message: Unauthorised for regime 'wrls'
+        '404':
+          description: Failed - unknown ID
+          content:
+            application/json:
+              examples:
+                Bill run unknown:
+                  value:
+                    statusCode: 404
+                    error: Not found
+                    message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
+                Invoice unknown:
+                  value:
+                    statusCode: 404
+                    error: Not found
+                    message: Invoice aa630ae0-0e51-4166-9025-66576c513f7f is unknown.
+        '409':
+          description: Failed - the action conflicts with something
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 409
+                  error: Conflict
+                  message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be edited because its status is billed.
+        '422':
+          description: Failed - issue with the requested data
+          content:
+            application/json:
+              examples:
+                Bill run not linked to regime:
+                  value:
+                    statusCode: 422
+                    error: Unprocessable Entity
+                    message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
+  '/v3/{regime}/bill-runs/{billRunId}/invoices/{invoiceId}':
+    delete:
       operationId: DeleteBillRunInvoice
       description: Delete the specified invoice and all linked licences and transactions. As part of the deletion the linked bill run will be updated.
       tags:

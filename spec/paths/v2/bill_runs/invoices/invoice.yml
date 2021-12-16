@@ -117,7 +117,7 @@ get:
                 error: Unprocessable Entity
                 message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
 delete:
-  operationId: DeleteBillRunInvoice
+  operationId: DeleteBillRunInvoiceV2
   description: "Delete the specified invoice and all linked licences and transactions. As part of the deletion the linked bill run will be updated."
   tags:
     - bill-run
