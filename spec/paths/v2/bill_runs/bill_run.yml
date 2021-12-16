@@ -152,13 +152,13 @@ get:
                           licenceNumber: 'FOOO/BARRR/306'
                         - id: '77502697-e274-491a-bd6d-84ec557b0485'
                           licenceNumber: 'FOOO/BARRR/307'
-            '06 Sent':
+            '06 Bill run is being sent':
               value:
                 billRun:
                   id: 'fd2ab097-3097-42bd-849e-046aa250a0d0'
                   billRunNumber: 10001
                   region: 'W'
-                  status: 'pending'
+                  status: 'sending'
                   creditNoteCount: 0
                   creditNoteValue: 0
                   invoiceCount: 1
