@@ -2415,7 +2415,6 @@ paths:
                           - approved
                           - billed
                           - billing_not_required
-                          - generating
                           - generated
                           - initialised
                           - pending
@@ -2574,7 +2573,7 @@ paths:
                       id: fd2ab097-3097-42bd-849e-046aa250a0d0
                       billRunNumber: 10001
                       region: W
-                      status: generating
+                      status: pending
                       creditNoteCount: 0
                       creditNoteValue: 0
                       invoiceCount: 0
@@ -2661,13 +2660,13 @@ paths:
                               licenceNumber: FOOO/BARRR/306
                             - id: 77502697-e274-491a-bd6d-84ec557b0485
                               licenceNumber: FOOO/BARRR/307
-                06 Sent:
+                06 Bill run is being sent:
                   value:
                     billRun:
                       id: fd2ab097-3097-42bd-849e-046aa250a0d0
                       billRunNumber: 10001
                       region: W
-                      status: pending
+                      status: sending
                       creditNoteCount: 0
                       creditNoteValue: 0
                       invoiceCount: 1
@@ -2908,11 +2907,11 @@ paths:
                     statusCode: 409
                     error: Conflict
                     message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be patched because its status is billed.
-                Bill run is already generating:
+                Bill run is currently being updated:
                   value:
                     statusCode: 409
                     error: Conflict
-                    message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is already being generated
+                    message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is being updated
                 Bill run is already generated:
                   value:
                     statusCode: 409
@@ -2977,7 +2976,6 @@ paths:
                       - approved
                       - billed
                       - billing_not_required
-                      - generating
                       - generated
                       - initialised
                       - pending
@@ -2991,7 +2989,7 @@ paths:
                     status: initialised
                 03 Generating bill run:
                   value:
-                    status: generating
+                    status: pending
                 04 Bill run generated:
                   value:
                     status: generated
@@ -3123,9 +3121,9 @@ paths:
 
         ### Transaction file reference
 
-        Each **bill run** is linked to a **regime** and region. Each combination has its own sequence counter. When a **bill run** is 'sent' the CM will generate a transaction file reference based on the **regime**, region and next sequence counter. This will be assigned to the **bill run** and its status will be updated to `pending`.
+        Each **bill run** is linked to a **regime** and region. Each combination has its own sequence counter. When a **bill run** is 'sent' the CM will generate a transaction file reference based on the **regime**, region and next sequence counter. This will be assigned to the **bill run**. While this is being generated, the bill run's status will be `pending` to indicate that the bill run details are being updated.
 
-        The CM will then generate the transaction import file and transfer it to an AWS S3 bucket. From there it will be picked up by an [FME job](https://www.safe.com/fme/) which will grab the file and handle the transfer to a location accessible by SSCL SOP.
+        Once this is done, the bill run's status will be set to `sending`. The CM will then generate the transaction import file and transfer it to an AWS S3 bucket. From there it will be picked up by an [FME job](https://www.safe.com/fme/) which will grab the file and handle the transfer to a location accessible by SSCL SOP.
 
         Once transferred to the AWS S3 bucket the **bill run's** status will be updated to `billed`.
 

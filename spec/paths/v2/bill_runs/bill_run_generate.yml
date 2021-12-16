@@ -37,11 +37,11 @@ patch:
                 statusCode: 409
                 error: Conflict
                 message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be patched because its status is billed.
-            'Bill run is already generating':
+            'Bill run is currently being updated':
               value:
                 statusCode: 409
                 error: Conflict
-                message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is already being generated
+                message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is being updated
             'Bill run is already generated':
               value:
                 statusCode: 409
