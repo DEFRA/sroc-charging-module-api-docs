@@ -10,8 +10,6 @@ Users of the API can interact with the very latest version of the spec at <https
 
 <img src="screenshots/api_screenshot.png" alt="Preview of the API documentation" style="width: 600px;"/>
 
-> Note - We're aware the Explore feature is not working. We're new to [Swagger-UI](https://github.com/swagger-api/swagger-ui) and still trying to understand what the issue is.
-
 ## Versioned specs
 
 Each time we version and then release the API we generate and save a version of the OpenAPI spec. You can find these in [/versions](versions).
