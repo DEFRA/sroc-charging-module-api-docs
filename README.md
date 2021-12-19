@@ -10,15 +10,13 @@ Users of the API can interact with the very latest version of the spec at <https
 
 <img src="screenshots/api_screenshot.png" alt="Preview of the API documentation" style="width: 600px;"/>
 
-> Note - We're aware the Explore feature is not working. We're new to [Swagger-UI](https://github.com/swagger-api/swagger-ui) and still trying to understand what the issue is.
-
 ## Versioned specs
 
-Each time we version and then release the API we generate and save a version of the OpenAPI spec. You can find these in [/versions](versions).
+Each time we version and then release the API we generate and save a version of our OpenAPI spec. You can find these in [/versions](versions).
 
-You can view them in the same way using a tool like [Postman](https://www.postman.com/) or [Insomnia](https://insomnia.rest/) (look for the ability to import a file). If you don't have access to a tool you can use something like [Openapi-Viewer](https://koumoul.com/openapi-viewer/), which is an online tool that will render OpenAPI specs from a url. We found giving it the raw GitHub url, for example, <https://raw.githubusercontent.com/DEFRA/sroc-charging-module-api-docs/main/versions/v0-15-0.yml> works great.
+You can also view them online using the same web page used to [view the documentation](#viewing-the-documentation). In the **Explore** field replace `draft.yml` with the version you'd like to see, for example, `versions/v0-15-0.yml`.
 
-<img src="screenshots/openapi_viewer.png" alt="Preview of the documentation in open API viewer" style="width: 800px;"/>
+<img src="screenshots/select_version.png" alt="Screenshot of the explore field with a version entered" style="width: 600px;"/>
 
 ## Understanding the documentation
 
