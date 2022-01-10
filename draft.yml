@@ -2934,6 +2934,106 @@ paths:
                     message: Summary for bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be generated because it has no transactions
   '/v2/{regime}/bill-runs/{billRunId}/status':
     get:
+      operationId: ViewBillRunStatusV2
+      description: Request to view the status of a single bill run based on the bill run ID. It is intended to help client systems quickly determine if a bill run is ready to be viewed after a `/generate` request and reduce the load on the API.
+      tags:
+        - bill-run
+      parameters:
+        - name: regime
+          in: path
+          required: true
+          description: Charging regime to use
+          schema:
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
+            type: string
+            enum:
+              - cfd
+              - pas
+              - wml
+              - wrls
+            example: wrls
+        - name: billRunId
+          in: path
+          required: true
+          description: Internal ID (GUID) allocated by the CM when creating a bill run.
+          schema:
+            description: Internal ID (GUID) allocated by the CM when creating a bill run.
+            type: string
+            format: uuid
+            example: fd2ab097-3097-42bd-849e-046aa250a0d0
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    description: Indicator to show the progress of a bill run towards billed status
+                    type: string
+                    enum:
+                      - approved
+                      - billed
+                      - billing_not_required
+                      - generated
+                      - initialised
+                      - pending
+                    example: billed
+              examples:
+                01 Just created:
+                  value:
+                    status: initialised
+                02 Transactions added:
+                  value:
+                    status: initialised
+                03 Generating bill run:
+                  value:
+                    status: pending
+                04 Bill run generated:
+                  value:
+                    status: generated
+                05 Approved:
+                  value:
+                    status: aproved
+                06 Sent:
+                  value:
+                    status: pending
+                07 Billed:
+                  value:
+                    status: billed
+                08 Not billed:
+                  value:
+                    status: billing_not_required
+        '403':
+          description: Failed - not authorised
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 403
+                  error: Forbidden
+                  message: Unauthorised for regime 'wrls'
+        '404':
+          description: Failed - unknown ID
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 404
+                  error: Not found
+                  message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
+        '422':
+          description: Failed - issue with the requested data
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 422
+                  error: Unprocessable Entity
+                  message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
+  '/v3/{regime}/bill-runs/{billRunId}/status':
+    get:
       operationId: ViewBillRunStatus
       description: Request to view the status of a single bill run based on the bill run ID. It is intended to help client systems quickly determine if a bill run is ready to be viewed after a `/generate` request and reduce the load on the API.
       tags:
@@ -3033,6 +3133,81 @@ paths:
                   error: Unprocessable Entity
                   message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
   '/v2/{regime}/bill-runs/{billRunId}/approve':
+    patch:
+      operationId: ApproveBillRunV2
+      description: Approves a specified bill run. Bill run must have a status of 'generated'. Must take place before bill run is sent.
+      tags:
+        - bill-run
+      parameters:
+        - name: regime
+          in: path
+          required: true
+          description: Charging regime to use
+          schema:
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
+            type: string
+            enum:
+              - cfd
+              - pas
+              - wml
+              - wrls
+            example: wrls
+        - name: billRunId
+          in: path
+          required: true
+          description: Internal ID (GUID) allocated by the CM when creating a bill run.
+          schema:
+            description: Internal ID (GUID) allocated by the CM when creating a bill run.
+            type: string
+            format: uuid
+            example: fd2ab097-3097-42bd-849e-046aa250a0d0
+      responses:
+        '204':
+          description: Success
+        '403':
+          description: Failed - not authorised
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 403
+                  error: Forbidden
+                  message: Unauthorised for regime 'wrls'
+        '404':
+          description: Failed - unknown ID
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 404
+                  error: Not found
+                  message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is unknown.
+        '409':
+          description: Failed - the action conflicts with something
+          content:
+            application/json:
+              examples:
+                Bill run cannot be updated:
+                  value:
+                    statusCode: 409
+                    error: Conflict
+                    message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 cannot be patched because its status is billed.
+                Bill run is not generated:
+                  value:
+                    statusCode: 409
+                    error: Conflict
+                    message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 does not have a status of 'generated'.
+        '422':
+          description: Failed - issue with the requested data
+          content:
+            application/json:
+              examples:
+                Bill run not linked to regime:
+                  value:
+                    statusCode: 422
+                    error: Unprocessable Entity
+                    message: Bill run fd2ab097-3097-42bd-849e-046aa250a0d0 is not linked to regime wrls.
+  '/v3/{regime}/bill-runs/{billRunId}/approve':
     patch:
       operationId: ApproveBillRun
       description: Approves a specified bill run. Bill run must have a status of 'generated'. Must take place before bill run is sent.
