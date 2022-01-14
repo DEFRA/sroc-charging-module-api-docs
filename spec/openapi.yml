@@ -204,8 +204,14 @@ paths:
   '/v2/{regime}/bill-runs/{billRunId}/status':
     $ref: 'paths/v2/bill_runs/bill_run_status.yml'
 
+  '/v3/{regime}/bill-runs/{billRunId}/status':
+    $ref: 'paths/v3/bill_runs/bill_run_status.yml'
+
   '/v2/{regime}/bill-runs/{billRunId}/approve':
     $ref: 'paths/v2/bill_runs/bill_run_approve.yml'
+
+  '/v3/{regime}/bill-runs/{billRunId}/approve':
+    $ref: 'paths/v3/bill_runs/bill_run_approve.yml'
 
   '/v2/{regime}/bill-runs/{billRunId}/send':
     $ref: 'paths/v2/bill_runs/bill_run_send.yml'
