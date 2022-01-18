@@ -176,7 +176,7 @@ calculateChargePostV2:
     season:
       $ref: 'fields.yml#/season'
     loss:
-      $ref: 'fields.yml#/loss'
+      $ref: 'fields.yml#/lossPresroc'
     twoPartTariff:
       $ref: 'fields.yml#/supplementaryTwoPartTariff'
     compensationCharge:
@@ -232,7 +232,7 @@ calculateChargePresrocPost:
     season:
       $ref: 'fields.yml#/season'
     loss:
-      $ref: 'fields.yml#/loss'
+      $ref: 'fields.yml#/lossPresroc'
     twoPartTariff:
       $ref: 'fields.yml#/supplementaryTwoPartTariff'
     compensationCharge:
@@ -295,7 +295,7 @@ calculateChargeSrocPost:
     compensationCharge:
       $ref: 'fields.yml#/compensationCharge'
     loss:
-      $ref: 'fields.yml#/loss'
+      $ref: 'fields.yml#/lossSroc'
     regionalChargingArea:
       $ref: 'fields.yml#/regionalChargingArea'
     section127Agreement:
@@ -617,7 +617,7 @@ transactionPostV2:
     season:
       $ref: 'fields.yml#/season'
     loss:
-      $ref: 'fields.yml#/loss'
+      $ref: 'fields.yml#/lossPresroc'
     twoPartTariff:
       $ref: 'fields.yml#/supplementaryTwoPartTariff'
     compensationCharge:
@@ -700,7 +700,7 @@ transactionPresrocPost:
     season:
       $ref: 'fields.yml#/season'
     loss:
-      $ref: 'fields.yml#/loss'
+      $ref: 'fields.yml#/lossPresroc'
     twoPartTariff:
       $ref: 'fields.yml#/supplementaryTwoPartTariff'
     compensationCharge:
@@ -803,7 +803,7 @@ transactionSrocPost:
     lineDescription:
       $ref: 'fields.yml#/lineDescription'
     loss:
-      $ref: 'fields.yml#/loss'
+      $ref: 'fields.yml#/lossSroc'
     region:
       $ref: 'fields.yml#/regionCode'
     regionalChargingArea:
