@@ -285,10 +285,15 @@ lineDescription:
   type: string
   maxLength: 240
   example: 'Borehole at Runhall, Norfolk.'
-loss:
-  description: "Loss on which charge calculation based"
+lossPresroc:
+  description: "Loss on which charge calculation based. Note that this list differs from the list for sroc."
   type: string
   enum: [High, Medium, Low, 'Very Low']
+  example: 'Medium'
+lossSroc:
+  description: "Loss on which charge calculation based. Note that this list differs from the list for presroc."
+  type: string
+  enum: [High, Medium, Low]
   example: 'Medium'
 lossFactor:
   description: "The loss factor applied to the calculation"
@@ -423,7 +428,7 @@ supportedSource:
 supportedSourceName:
   description: "Boolean indicator to show whether a supported source supplement is to be added to a charge"
   type: string
-  enum: ['Candover', 'Dee', 'Earl Soham - Deben', 'Glen Groundwater', 'Great East Anglian Groundwater', 'Great East Anglian Surface Water', 'Kielder', 'Lodes Granta Groundwater', 'Lower Yorkshire Derwent', 'Medway - Allington', 'Nene – Northampton', 'Nene – Water Newton', 'Ouse - Offord', 'Ouse – Eaton Socon', 'Ouse – Hermitage', 'Rhee Groundwater', 'Severn', 'Thames', 'Thet and Little Ouse Surface Water', 'Waveney Groundwater', 'Waveney Surface Water', 'Welland – Tinwell Sluices', 'Witham and Ancholme', 'Wye']
+  enum: ['Candover', 'Dee', 'Earl Soham - Deben', 'Glen Groundwater', 'Great East Anglian Groundwater', 'Great East Anglian Surface Water', 'Kielder', 'Lodes Granta Groundwater', 'Lower Yorkshire Derwent', 'Medway - Allington', 'Nene - Northampton', 'Nene - Water Newton', 'Ouse - Offord', 'Ouse - Eaton Socon', 'Ouse - Hermitage', 'Rhee Groundwater', 'Severn', 'Thames', 'Thet and Little Ouse Surface Water', 'Waveney Groundwater', 'Waveney Surface Water', 'Welland - Tinwell Sluices', 'Witham and Ancholme', 'Wye']
   example: 'Thames'
 supportedSourceValue:
   description: Value in pence of the supported source supplement, where applied

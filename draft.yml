@@ -1482,7 +1482,7 @@ paths:
                     - All Year
                   example: Summer
                 loss:
-                  description: Loss on which charge calculation based
+                  description: Loss on which charge calculation based. Note that this list differs from the list for sroc.
                   type: string
                   enum:
                     - High
@@ -1864,7 +1864,7 @@ paths:
                         - All Year
                       example: Summer
                     loss:
-                      description: Loss on which charge calculation based
+                      description: Loss on which charge calculation based. Note that this list differs from the list for sroc.
                       type: string
                       enum:
                         - High
@@ -2163,13 +2163,12 @@ paths:
                       maxLength: 240
                       example: 'Borehole at Runhall, Norfolk.'
                     loss:
-                      description: Loss on which charge calculation based
+                      description: Loss on which charge calculation based. Note that this list differs from the list for presroc.
                       type: string
                       enum:
                         - High
                         - Medium
                         - Low
-                        - Very Low
                       example: Medium
                     region:
                       description: A single-digit region identifier for a transaction or customer
@@ -2228,18 +2227,18 @@ paths:
                         - Lodes Granta Groundwater
                         - Lower Yorkshire Derwent
                         - Medway - Allington
-                        - Nene – Northampton
-                        - Nene – Water Newton
+                        - Nene - Northampton
+                        - Nene - Water Newton
                         - Ouse - Offord
-                        - Ouse – Eaton Socon
-                        - Ouse – Hermitage
+                        - Ouse - Eaton Socon
+                        - Ouse - Hermitage
                         - Rhee Groundwater
                         - Severn
                         - Thames
                         - Thet and Little Ouse Surface Water
                         - Waveney Groundwater
                         - Waveney Surface Water
-                        - Welland – Tinwell Sluices
+                        - Welland - Tinwell Sluices
                         - Witham and Ancholme
                         - Wye
                       example: Thames
@@ -4078,7 +4077,7 @@ paths:
                     - All Year
                   example: Summer
                 loss:
-                  description: Loss on which charge calculation based
+                  description: Loss on which charge calculation based. Note that this list differs from the list for sroc.
                   type: string
                   enum:
                     - High
@@ -4403,7 +4402,7 @@ paths:
                         - All Year
                       example: Summer
                     loss:
-                      description: Loss on which charge calculation based
+                      description: Loss on which charge calculation based. Note that this list differs from the list for sroc.
                       type: string
                       enum:
                         - High
@@ -4537,13 +4536,12 @@ paths:
                       type: boolean
                       example: false
                     loss:
-                      description: Loss on which charge calculation based
+                      description: Loss on which charge calculation based. Note that this list differs from the list for presroc.
                       type: string
                       enum:
                         - High
                         - Medium
                         - Low
-                        - Very Low
                       example: Medium
                     regionalChargingArea:
                       description: Name of the region to be used when determining the regional factor to be applied for a compensation charge
