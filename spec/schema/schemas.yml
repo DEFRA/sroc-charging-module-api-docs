@@ -540,6 +540,8 @@ invoice:
                   $ref: 'fields.yml#/periodEnd'
                 compensationCharge:
                   $ref: 'fields.yml#/compensationCharge'
+                rebilledTransactionId:
+                  $ref: 'fields.yml#/rebilledTransactionId'
                 calculation:
                   description: "Copy of the Rules service JSON response for audit/reference purposes"
                   type: object
