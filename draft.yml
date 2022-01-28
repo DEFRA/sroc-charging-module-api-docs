@@ -3627,6 +3627,11 @@ paths:
                                 description: Boolean indicator to show whether the transaction relates to a compensation charge
                                 type: boolean
                                 example: false
+                              rebilledTransactionId:
+                                description: If a rebilled transaction this is the ID of the originating transaction.
+                                type: string
+                                format: uuid
+                                example: 99999999-9999-9999-9999-999999999999
                               calculation:
                                 description: Copy of the Rules service JSON response for audit/reference purposes
                                 type: object
@@ -3660,6 +3665,7 @@ paths:
                           periodStart: '2018-04-01T00:00:00.000Z'
                           periodEnd: '2019-03-31T00:00:00.000Z'
                           compensationCharge: false
+                          rebilledTransactionId: eacbef6b-938c-4cc5-9650-594dc25b4a7b
                           calculation:
                             __DecisionID__: ba31bd7b-a13e-4820-b15d-6f70fb2c52490
                             WRLSChargingResponse:
