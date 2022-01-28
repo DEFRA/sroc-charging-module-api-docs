@@ -334,6 +334,11 @@ rebilledInvoiceId:
   type: string
   format: uuid
   example: '99999999-9999-9999-9999-999999999999'
+rebilledTransactionId:
+  description: "If a rebilled transaction this is the ID of the originating transaction."
+  type: string
+  format: uuid
+  example: '99999999-9999-9999-9999-999999999999'
 rebilledType:
   description: "The type of invoice in relation to rebilling. `O` (Original) means the invoice is not a result of rebilling. `C` (Cancel) is an invoice generated as a result of rebilling to 'cancel' the original invoice. `R` (Rebill) is the invoice generated to 'rebill' the original invoice."
   type: string
@@ -379,7 +384,7 @@ section127Agreement:
   type: boolean
   example: false
 section127Factor:
-  description: The factor applied to the charge (if any) for a Section 127 agreement 
+  description: The factor applied to the charge (if any) for a Section 127 agreement
   type: number
   example: 0.5
 section130Agreement:
