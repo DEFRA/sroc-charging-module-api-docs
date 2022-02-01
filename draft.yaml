@@ -4659,6 +4659,182 @@ paths:
                   winterOnly: false
   '/v2/{regime}/customer-changes':
     post:
+      operationId: CreateCustomerChangeV2
+      description: |
+        Provides details of a single new customer record or a change to an existing customer record for inclusion in a customer file and onward transmission to SSCL
+
+        ## Customer import file
+
+        The purpose of sending this customer information to the CM is so that it can be transferred to SSCL SOP to update its records. Then when it generates the invoices for customers it has the correct details.
+
+        ### Triggering the file
+
+        Each **bill run** is linked to a **regime** and region. When a **bill run** is 'sent' the CM will also check if any customer changes for the same **regime** and region are outstanding.
+
+        Should no **bill runs** be 'sent' that week, the CM has a weekly scheduled task to pick up the remaining changes and generate files for them.
+
+        ### Customer file reference
+
+        In both cases the CM will generate a **customer file** record and reference number (one for each **regime** and region). The outstanding changes will be linked to this new record which will be marked as `pending`.
+
+        The CM will then generate the customer import file and transfer it to an AWS S3 bucket. From there it will be picked up by an [FME job](https://www.safe.com/fme/) which will grab the file and handle the transfer to a location accessible by SSCL SOP.
+
+        Once transferred to the AWS S3 bucket the changes will be deleted and the **customer file** record's status updated to `exported`. The only detail the CM retains from the change is the customer reference so we can audit when and in what file a change was submitted.
+
+        ### Customer file details
+
+        The customer import file is made up of 3 sections.
+
+        #### Head
+
+        The first row in the file
+
+        | Column Index | Example | Notes |
+        |--------------|---------|-------|
+        | 1  | `H` | Row type indicator |
+        | 2  | `0000000` | Row index |
+        | 3  | `NAL` | Regime reference |
+        | 4  | `A` | Region |
+        | 5  | `C` | File type indicator |
+        | 6  | `50001` | Customer file reference |
+        | 7  | `25 March 2021` | Date the file was generated |
+
+        #### Body
+
+        Each change is represented by a row in the body section
+
+        | Column Index | Example | Notes |
+        |--------------|---------|-------|
+        | 1  | `D` | Row type indicator |
+        | 2  | `0000001` | Row index |
+        | 3  | `TH230000222` | Customer reference |
+        | 4  | `Environment Agency` | Customer name |
+        | 5  | `Permits dept.` | Address line 1 |
+        | 6  | `4th Floor` | Address line 2 |
+        | 7  | `Horizon House` | Address line 3 |
+        | 8  | `Deanery Road` | Address line 4 |
+        | 9  | `Bristol` | Address line 5 |
+        | 10 | `United Kingdom` | Address line 6 |
+        | 11 | `BS1 5AH` | Postcode |
+
+        #### Tail
+
+        The last row in the file is used to confirm how many lines there are
+
+        | Column Index | Example | Notes |
+        |--------------|---------|-------|
+        | 1  | `T` | Row type indicator |
+        | 2  | `0000002` | Row index |
+        | 3  | `3` | Row count |
+      tags:
+        - customer
+      parameters:
+        - name: regime
+          in: path
+          required: true
+          description: Charging regime to use
+          schema:
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
+            type: string
+            enum:
+              - cfd
+              - pas
+              - wml
+              - wrls
+            example: wrls
+      responses:
+        '201':
+          description: Success
+        '403':
+          description: Failed - not authorised
+          content:
+            application/json:
+              schema:
+                example:
+                  statusCode: 403
+                  error: Forbidden
+                  message: Unauthorised for regime 'wrls'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                region:
+                  description: A single-digit region identifier for a transaction or customer
+                  type: string
+                  enum:
+                    - A
+                    - B
+                    - E
+                    - 'N'
+                    - S
+                    - T
+                    - W
+                    - 'Y'
+                  example: A
+                customerReference:
+                  description: Customer Number of the invoicee
+                  type: string
+                  example: B19120000A
+                customerName:
+                  description: Name of the customer as it should be displayed on the invoice (or credit note)
+                  type: string
+                  maxLength: 240
+                  example: Mr W Aston
+                addressLine1:
+                  description: First line of billing address for a customer
+                  type: string
+                  maxLength: 240
+                  example: Park Farm
+                addressLine2:
+                  description: Second line of the billing address for a customer
+                  type: string
+                  maxLength: 240
+                  example: Sugar Lane
+                addressLine3:
+                  description: Third line of the billing address for a customer
+                  type: string
+                  maxLength: 240
+                  nullable: true
+                  example: West Waterford
+                addressLine4:
+                  description: Fourth line of the billing address for a customer
+                  type: string
+                  maxLength: 240
+                  nullable: true
+                  example: Angleton
+                addressLine5:
+                  description: Town of the billing address for a customer
+                  type: string
+                  maxLength: 60
+                  nullable: true
+                  example: Southampton
+                addressLine6:
+                  description: County of the billing address for a customer
+                  type: string
+                  maxLength: 60
+                  nullable: true
+                  example: Hampshire
+                postcode:
+                  description: Postcode of billing address for a customer
+                  type: string
+                  nullable: true
+                  example: SO74 3KD
+              required:
+                - region
+                - customerReference
+                - customerName
+                - addressLine1
+            example:
+              region: A
+              customerReference: BB02BEEB
+              customerName: Huge Factory Ltd
+              addressLine1: 1 Monster Lane
+              addressLine2: High Town
+              addressLine4: Chigley
+  '/v3/{regime}/customer-changes':
+    post:
       operationId: CreateCustomerChange
       description: |
         Provides details of a single new customer record or a change to an existing customer record for inclusion in a customer file and onward transmission to SSCL
@@ -4834,6 +5010,98 @@ paths:
               addressLine2: High Town
               addressLine4: Chigley
   '/v2/{regime}/customer-files/{days}':
+    get:
+      operationId: ListCustomerFilesV2
+      description: Request a list of 'customer files'. Each record contains the details for a file of customer changes the API generated and sent to SSCL.
+      tags:
+        - customer
+      parameters:
+        - name: regime
+          in: path
+          required: true
+          description: Charging regime to use
+          schema:
+            description: 'Short reference for a regime, referred to as a ''slug''. This is also what we expect to see in the path as the regime identifier when making a request'
+            type: string
+            enum:
+              - cfd
+              - pas
+              - wml
+              - wrls
+            example: wrls
+        - name: days
+          in: path
+          description: 'OPTIONAL. Number of days of customer files to retrieve, where 0 = files generated today, 1 = files generated yesterday and today, etc. Defaults to 30 days if not provided'
+          schema:
+            description: 'Number of days of customer files to retrieve, where 0 = files generated today, 1 = files generated yesterday and today, etc.'
+            type: integer
+            minimum: 0
+            default: 30
+            example: 15
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      description: Internal ID (GUID) allocated by the CM when creating a customer file
+                      type: string
+                      format: uuid
+                      example: fd2ab097-3097-42bd-849e-046aa250a0d0
+                    fileReference:
+                      description: A 10-digit reference indicating the name of the customer file generated by the CM for notifying SSCL of new / updated customer records
+                      type: string
+                      example: nalsc50004
+                    status:
+                      description: Current status of the customer file. Note - if a file has a status of `pending` for more than a few minutes it is likely an issue as occurred during the generation
+                      type: string
+                      enum:
+                        - initialised
+                        - pending
+                        - exported
+                      example: exported
+                    exportedAt:
+                      description: Date and time at which the customer file was generated
+                      type: string
+                      format: datetime
+                      example: '2020-09-11T11:56:41.578Z'
+                    exportedCustomers:
+                      type: array
+                      items:
+                        description: Customer Number of the invoicee
+                        type: string
+                        example: B19120000A
+              example:
+                - id: 9523ff61-bd21-4800-aa7d-d97aa6c923aa
+                  fileReference: nalac50001
+                  status: exported
+                  exportedAt: 2021-09-22T12:34:56.789Z
+                  exportedCustomers:
+                    - AB01BEEB
+                    - BB01BEEB
+                    - CB01BEEB
+                - id: aa271bc5-0e36-4aeb-b636-64d95482825f
+                  fileReference: nalac50002
+                  status: exported
+                  exportedAt: 2021-09-23T13:57:24.680Z
+                  exportedCustomers:
+                    - DB02BEEB
+                    - EB02BEEB
+                    - FB02BEEB
+        '400':
+          description: Failed - issue with the request parameter
+          content:
+            application/json:
+              example:
+                statusCode: '400,'
+                error: Bad Request
+                message: Invalid request params input
+  '/v3/{regime}/customer-files/{days}':
     get:
       operationId: ListCustomerFiles
       description: Request a list of 'customer files'. Each record contains the details for a file of customer changes the API generated and sent to SSCL.
