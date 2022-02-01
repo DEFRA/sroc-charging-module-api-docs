@@ -1,12 +1,12 @@
 get:
-  operationId: ListCustomerFilesV2
+  operationId: ListCustomerFiles
   description: "Request a list of 'customer files'. Each record contains the details for a file of customer changes the API generated and sent to SSCL."
   tags:
     - customer
   parameters:
     - $ref: '../../../schema/parameters.yml#/regime'
     - $ref: '../../../schema/parameters.yml#/days'
-
+    
   responses:
     '200':
       description: Success
