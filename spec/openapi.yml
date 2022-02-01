@@ -222,6 +222,9 @@ paths:
   '/v2/{regime}/bill-runs/{billRunId}/send':
     $ref: 'paths/v2/bill_runs/bill_run_send.yml'
 
+  '/v3/{regime}/bill-runs/{billRunId}/send':
+    $ref: 'paths/v3/bill_runs/bill_run_send.yml'
+
   '/v2/{regime}/bill-runs/{billRunId}/invoices/{invoiceId}':
     $ref: 'paths/v2/bill_runs/invoices/invoice.yml'
 
