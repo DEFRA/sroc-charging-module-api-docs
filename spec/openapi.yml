@@ -204,6 +204,9 @@ paths:
   '/v2/{regime}/bill-runs/{billRunId}/generate':
     $ref: 'paths/v2/bill_runs/bill_run_generate.yml'
 
+  '/v3/{regime}/bill-runs/{billRunId}/generate':
+    $ref: 'paths/v3/bill_runs/bill_run_generate.yml'
+
   '/v2/{regime}/bill-runs/{billRunId}/status':
     $ref: 'paths/v2/bill_runs/bill_run_status.yml'
 

@@ -1,5 +1,5 @@
 patch:
-  operationId: GenerateBillRunV2
+  operationId: GenerateBillRun
   description: "Generate the summary for the specified bill run. Bill run must be unbilled. Must take place before bill run is sent."
   tags:
     - bill-run
