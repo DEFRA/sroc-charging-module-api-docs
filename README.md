@@ -14,7 +14,7 @@ Users of the API can interact with the very latest version of the spec at <https
 
 Each time we version and then release the API we generate and save a version of our OpenAPI spec. You can find these in [/versions](versions).
 
-You can also view them online using the same web page used to [view the documentation](#viewing-the-documentation). In the **Explore** field replace `draft.yml` with the version you'd like to see, for example, `versions/v0-15-0.yml`.
+You can also view them online using the same web page used to [view the documentation](#viewing-the-documentation). In the **Explore** field replace `draft.yaml` with the version you'd like to see, for example, `versions/v0-15-0.yml`.
 
 <img src="screenshots/select_version.png" alt="Screenshot of the explore field with a version entered" style="width: 600px;"/>
 
@@ -30,7 +30,7 @@ Our working files are in [/spec](spec) with [/spec/openapi.yml](openapi.yml) as 
 
 In our project we use [$ref's](https://swagger.io/docs/specification/using-ref/) in `openapi.yml` to reference [/spec/paths](path) and [/spec/schema](schema) definitions held in other files. This helps keep the files smaller and specific to their purpose or domain.
 
-Most viewers and tools however, still expect a dereferenced single file. So, [/spec](/spec) contains our working version from which we generate [draft.yml](draft.yml) which is used by **swagger-ui** and GitHub pages to build our [site](https://defra.github.io/sroc-charging-module-api-docs).
+Most viewers and tools however, still expect a dereferenced single file. So, [/spec](/spec) contains our working version from which we generate [draft.yaml](draft.yaml) which is used by **swagger-ui** and GitHub pages to build our [site](https://defra.github.io/sroc-charging-module-api-docs).
 
 ## Maintaining the documentation
 
@@ -64,19 +64,19 @@ The [spec](/spec) is all defined in [YAML](https://en.wikipedia.org/wiki/YAML) s
 
 This is provided to help those new to working with the spec. Contributors are welcome to setup their local environment as they see fit.
 
-### Generating draft.yml
+### Generating draft.yaml
 
-If your change to this project involves making a change to something in [/spec](spec) you must also re-generate [draft.yml](draft.yml). To do this run
+If your change to this project involves making a change to something in [/spec](spec) you must also re-generate [draft.yaml](draft.yaml). To do this run
 
 ```bash
 npm start
 ```
 
-You should see your changes to the spec reflected in the diff for `draft.yml`. Commit this change as part of your PR.
+You should see your changes to the spec reflected in the diff for `draft.yaml`. Commit this change as part of your PR.
 
 ### Generating versions
 
-When a new version of the [Charging Module API](https://github.com/DEFRA/sroc-charging-module-api) is [signed off](https://github.com/DEFRA/sroc-service-team/blob/main/releasing/cha/sign_off.md) ready for release a copy of `draft.yml` should be added to [/versions](/versions) and renamed accordingly.
+When a new version of the [Charging Module API](https://github.com/DEFRA/sroc-charging-module-api) is [signed off](https://github.com/DEFRA/sroc-service-team/blob/main/releasing/cha/sign_off.md) ready for release a copy of `draft.yaml` should be added to [/versions](/versions) and renamed accordingly.
 
 ## Contributing to this project
 
