@@ -1,5 +1,5 @@
 get:
-  operationId: ViewBillRunInvoice
+  operationId: ViewBillRunInvoiceV2
   description: "Request to view details of an invoice. Returns information about the invoice, each of the licences linked to it, and all transactions linked to each licence."
   tags:
     - bill-run
